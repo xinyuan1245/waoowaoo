@@ -63,6 +63,34 @@ describe('provider test connection', () => {
     })
   })
 
+  it('routes deepseek provider through official openai-compatible probe', async () => {
+    fetchMock.mockImplementationOnce(async (input: unknown) => {
+      const url = String(input)
+      if (url === 'https://api.deepseek.com/models' || url === 'https://api.deepseek.com/v1/models') {
+        return new Response(JSON.stringify({ data: [{ id: 'deepseek-chat' }, { id: 'deepseek-reasoner' }] }), { status: 200 })
+      }
+      return new Response('not-found', { status: 404 })
+    })
+
+    const result = await testProviderConnection({
+      apiType: 'deepseek',
+      apiKey: 'ds-key',
+    })
+
+    expect(result.success).toBe(true)
+    expect(result.steps[0]).toEqual({
+      name: 'models',
+      status: 'pass',
+      message: 'Found 2 models',
+    })
+    expect(result.steps[1]).toEqual({
+      name: 'credits',
+      status: 'skip',
+      message: 'Credits endpoint not supported by this compatible provider',
+      detail: '/credits 404 failed | /user/info 404 failed | /dashboard/billing/credit_grants 404 failed | /v1/credits 404 failed | /v1/user/info 404 failed | /v1/dashboard/billing/credit_grants 404 failed',
+    })
+  })
+
   it('classifies auth failures for bailian models probe', async () => {
     fetchMock.mockImplementationOnce(async () => new Response('unauthorized', { status: 401 }))
 

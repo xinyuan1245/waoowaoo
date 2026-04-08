@@ -112,6 +112,9 @@ export const PRESET_MODELS: PresetModel[] = [
     // 阿里云百炼文本模型
     { modelId: 'qwen3.5-plus', name: 'Qwen 3.5 Plus', type: 'llm', provider: 'bailian' },
     { modelId: 'qwen3.5-flash', name: 'Qwen 3.5 Flash', type: 'llm', provider: 'bailian' },
+    // DeepSeek 官方文本模型
+    { modelId: 'deepseek-chat', name: 'DeepSeek Chat', type: 'llm', provider: 'deepseek' },
+    { modelId: 'deepseek-reasoner', name: 'DeepSeek Reasoner', type: 'llm', provider: 'deepseek' },
     // MiniMax 官方文本模型
     { modelId: 'MiniMax-M2.5', name: 'MiniMax M2.5', type: 'llm', provider: 'minimax' },
     { modelId: 'MiniMax-M2.5-highspeed', name: 'MiniMax M2.5 Highspeed', type: 'llm', provider: 'minimax' },
@@ -201,6 +204,7 @@ export const PRESET_PROVIDERS: Omit<Provider, 'apiKey' | 'hasApiKey'>[] = [
     { id: 'ark', name: 'Volcengine Ark' },
     { id: 'google', name: 'Google AI Studio' },
     { id: 'bailian', name: 'Alibaba Bailian' },
+    { id: 'deepseek', name: 'DeepSeek', baseUrl: 'https://api.deepseek.com' },
     { id: 'openrouter', name: 'OpenRouter', baseUrl: 'https://openrouter.ai/api/v1' },
     { id: 'minimax', name: 'MiniMax Hailuo', baseUrl: 'https://api.minimaxi.com/v1' },
     { id: 'vidu', name: 'Vidu' },
@@ -212,6 +216,7 @@ const ZH_PROVIDER_NAME_MAP: Record<string, string> = {
     minimax: '海螺 MiniMax',
     vidu: '生数科技 Vidu',
     bailian: '阿里云百炼',
+    deepseek: '深度求索 DeepSeek',
     siliconflow: '硅基流动',
 }
 
@@ -308,6 +313,15 @@ export const PROVIDER_TUTORIALS: ProviderTutorial[] = [
             {
                 text: 'ark_step2',
                 url: 'https://console.volcengine.com/ark/region:ark+cn-beijing/openManagement?LLM=%7B%7D&advancedActiveKey=model'
+            }
+        ]
+    },
+    {
+        providerId: 'deepseek',
+        steps: [
+            {
+                text: 'deepseek_step1',
+                url: 'https://platform.deepseek.com/api_keys'
             }
         ]
     },

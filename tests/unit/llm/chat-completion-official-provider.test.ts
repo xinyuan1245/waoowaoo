@@ -42,7 +42,7 @@ const runOpenAICompatChatCompletionMock = vi.hoisted(() =>
 )
 
 const getProviderConfigMock = vi.hoisted(() =>
-  vi.fn(async () => ({
+  vi.fn<typeof import('@/lib/api-config').getProviderConfig>(async () => ({
     id: 'bailian',
     name: 'Alibaba Bailian',
     apiKey: 'bl-key',
@@ -56,9 +56,48 @@ const llmLoggerWarnMock = vi.hoisted(() => vi.fn())
 const logLlmRawInputMock = vi.hoisted(() => vi.fn())
 const logLlmRawOutputMock = vi.hoisted(() => vi.fn())
 const recordCompletionUsageMock = vi.hoisted(() => vi.fn())
+const generateTextMock = vi.hoisted(() =>
+  vi.fn(async () => {
+    throw new Error('ai sdk should not be called')
+  }),
+)
+const openAICompletionCreateMock = vi.hoisted(() =>
+  vi.fn(async () => ({
+    id: 'chatcmpl_deepseek_mock',
+    object: 'chat.completion',
+    created: 1,
+    model: 'deepseek-chat',
+    choices: [
+      {
+        index: 0,
+        message: { role: 'assistant', content: 'deepseek-ok' },
+        finish_reason: 'stop',
+      },
+    ],
+    usage: {
+      prompt_tokens: 2,
+      completion_tokens: 3,
+      total_tokens: 5,
+    },
+  })),
+)
 
 vi.mock('@/lib/llm-observe/internal-stream-context', () => ({
   getInternalLLMStreamCallbacks: vi.fn(() => null),
+}))
+
+vi.mock('ai', () => ({
+  generateText: generateTextMock,
+}))
+
+vi.mock('openai', () => ({
+  default: class OpenAI {
+    chat = {
+      completions: {
+        create: openAICompletionCreateMock,
+      },
+    }
+  },
 }))
 
 vi.mock('@/lib/model-gateway', () => ({
@@ -120,5 +159,35 @@ describe('llm chatCompletion official provider branch', () => {
     expect(completeSiliconFlowLlmMock).not.toHaveBeenCalled()
     expect(result.choices[0]?.message?.content).toBe('ok')
     expect(recordCompletionUsageMock).toHaveBeenCalledTimes(1)
+  })
+
+  it('uses native openai sdk path for deepseek official provider', async () => {
+    resolveLlmRuntimeModelMock.mockResolvedValueOnce({
+      provider: 'deepseek',
+      modelId: 'deepseek-chat',
+      modelKey: 'deepseek::deepseek-chat',
+    })
+    getProviderConfigMock.mockResolvedValueOnce({
+      id: 'deepseek',
+      name: 'DeepSeek',
+      apiKey: 'ds-key',
+      baseUrl: 'https://api.deepseek.com',
+      gatewayRoute: 'official' as const,
+    })
+
+    const result = await chatCompletion(
+      'user-1',
+      'deepseek::deepseek-chat',
+      [{ role: 'user', content: 'hello deepseek' }],
+      { temperature: 0.1 },
+    )
+
+    expect(generateTextMock).not.toHaveBeenCalled()
+    expect(openAICompletionCreateMock).toHaveBeenCalledWith({
+      model: 'deepseek-chat',
+      messages: [{ role: 'user', content: 'hello deepseek' }],
+      temperature: 0.1,
+    })
+    expect(result.choices[0]?.message?.content).toBe('deepseek-ok')
   })
 })

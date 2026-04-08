@@ -107,6 +107,7 @@ describe('system - generate video', () => {
 
     expect(task.status).toBe('completed')
     expect(task.type).toBe('video_panel')
+    expect(task.targetId).toBe(seeded.panel.id)
     expect(task.externalId).toBe('video-ext-1')
 
     const panel = await prisma.novelPromotionPanel.findUnique({

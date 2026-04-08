@@ -62,4 +62,10 @@ describe('normalizeAnyError provider-specific mapping', () => {
     expect(normalized.code).toBe('VIDEO_API_FORMAT_UNSUPPORTED')
     expect(normalized.retryable).toBe(false)
   })
+
+  it('maps character model not configured message to MODEL_NOT_CONFIGURED', () => {
+    const normalized = normalizeAnyError(new Error('Character model not configured'))
+    expect(normalized.code).toBe('MODEL_NOT_CONFIGURED')
+    expect(normalized.retryable).toBe(false)
+  })
 })

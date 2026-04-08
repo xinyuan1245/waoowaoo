@@ -18,6 +18,9 @@ import { normalizeToBase64ForGeneration } from '@/lib/media/outbound-image'
 import { resolveBuiltinCapabilitiesByModelKey } from '@/lib/model-capabilities/lookup'
 import { parseModelKeyStrict } from '@/lib/model-config-contract'
 import { getProviderConfig } from '@/lib/api-config'
+import { maybeOptimizeVideoPromptForModel } from '@/lib/video-prompt-skills'
+import { buildMergedVideoPromptSource, findVideoShotGroupForPanel } from '@/lib/video-shot-grouping'
+import { usesSeedance20VideoSkill } from '@/lib/video-prompt-skills'
 
 type AnyObj = Record<string, unknown>
 type VideoOptionValue = string | number | boolean
@@ -82,6 +85,7 @@ async function generateVideoForPanel(
   panel: PanelRecord,
   payload: AnyObj,
   modelId: string,
+  analysisModel: string | null | undefined,
   projectVideoRatio: string | null | undefined,
   generationOptions: VideoOptionMap,
 ): Promise<{ cosKey: string; generationMode: VideoGenerationMode; actualVideoTokens?: number }> {
@@ -96,7 +100,7 @@ async function generateVideoForPanel(
   const firstLastCustomPrompt = typeof firstLastFramePayload?.customPrompt === 'string' ? firstLastFramePayload.customPrompt : null
   const persistedFirstLastPrompt = firstLastFramePayload ? panel.firstLastFramePrompt : null
   const customPrompt = typeof payload.customPrompt === 'string' ? payload.customPrompt : null
-  const prompt = firstLastCustomPrompt || persistedFirstLastPrompt || customPrompt || panel.videoPrompt || panel.description
+  let prompt = firstLastCustomPrompt || persistedFirstLastPrompt || customPrompt || panel.videoPrompt || panel.description
   if (!prompt) {
     throw new Error(`Panel ${panel.id} has no video prompt`)
   }
@@ -141,12 +145,57 @@ async function generateVideoForPanel(
     }
   }
 
+  if (!firstLastFramePayload && usesSeedance20VideoSkill(model)) {
+    const storyboard = await prisma.novelPromotionStoryboard.findUnique({
+      where: { id: panel.storyboardId },
+      select: {
+        id: true,
+        panels: {
+          where: {
+            imageUrl: { not: null },
+          },
+          orderBy: { panelIndex: 'asc' },
+          select: {
+            id: true,
+            storyboardId: true,
+            panelIndex: true,
+            location: true,
+            characters: true,
+            videoPrompt: true,
+            description: true,
+            shotType: true,
+            cameraMove: true,
+            duration: true,
+          },
+        },
+      },
+    })
+    const group = storyboard
+      ? findVideoShotGroupForPanel(storyboard.panels, panel.storyboardId, panel.panelIndex)
+      : null
+    if (group && group.members.length > 1 && group.members[0]?.panelIndex === panel.panelIndex) {
+      prompt = buildMergedVideoPromptSource(group)
+    }
+  }
+
+  const optimizedPrompt = await maybeOptimizeVideoPromptForModel({
+    userId: job.data.userId,
+    projectId: job.data.projectId,
+    locale: job.data.locale,
+    modelKey: model,
+    analysisModel: analysisModel || null,
+    prompt,
+    durationSeconds: typeof generationOptions.duration === 'number' ? generationOptions.duration : panel.duration ?? undefined,
+    aspectRatio: projectVideoRatio || undefined,
+    generationMode,
+  })
+
   const generatedVideo = await resolveVideoSourceFromGeneration(job, {
     userId: job.data.userId,
     modelId: model,
     imageUrl: sourceImageBase64,
     options: {
-      prompt,
+      prompt: optimizedPrompt,
       ...(projectVideoRatio ? { aspectRatio: projectVideoRatio } : {}),
       ...generationOptions,
       generationMode,
@@ -201,6 +250,7 @@ async function handleVideoPanelTask(job: Job<TaskJobData>) {
     panel,
     payload,
     modelId,
+    projectModels.analysisModel,
     projectModels.videoRatio,
     generationOptions,
   )

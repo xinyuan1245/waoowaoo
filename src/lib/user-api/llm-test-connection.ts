@@ -7,6 +7,7 @@ type SupportedProvider =
   | 'anthropic'
   | 'openai'
   | 'bailian'
+  | 'deepseek'
   | 'siliconflow'
   | 'openai-compatible'
   | 'gemini-compatible'
@@ -42,6 +43,7 @@ function normalizeProvider(payload: TestConnectionPayload): SupportedProvider {
     case 'openai-compatible':
     case 'gemini-compatible':
     case 'bailian':
+    case 'deepseek':
     case 'siliconflow':
     case 'custom':
       return provider
@@ -193,6 +195,14 @@ export async function testLlmConnection(payload: TestConnectionPayload): Promise
     case 'bailian': {
       const tested = await testBailianProbe(apiKey)
       return { provider, message: 'bailian 连接成功', ...tested }
+    }
+    case 'deepseek': {
+      const tested = await testOpenAICompatibleConnection({
+        apiKey,
+        baseURL: 'https://api.deepseek.com',
+        model: requestedModel || 'deepseek-chat',
+      })
+      return { provider, message: 'deepseek 连接成功', ...tested }
     }
     case 'siliconflow': {
       const tested = await testSiliconFlowProbe(apiKey)

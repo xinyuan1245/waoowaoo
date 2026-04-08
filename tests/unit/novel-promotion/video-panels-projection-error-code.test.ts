@@ -41,4 +41,40 @@ describe('video panels projection error code', () => {
     expect(result.allPanels[0]?.videoErrorCode).toBe('EXTERNAL_ERROR')
     expect(result.allPanels[0]?.videoErrorMessage).toBe('upstream failed')
   })
+
+  it('lets merged follower panels inherit leader video state', () => {
+    const result = useVideoPanelsProjection({
+      clips: [{ id: 'clip-1', start: 0, end: 5, summary: 'clip' }],
+      storyboards: [{
+        id: 'sb-1',
+        clipId: 'clip-1',
+        panels: [{
+          id: 'panel-1',
+          panelIndex: 0,
+          description: 'panel 1',
+          location: '客厅',
+          characters: JSON.stringify(['张三']),
+          videoUrl: 'video/shared.mp4',
+        }, {
+          id: 'panel-2',
+          panelIndex: 1,
+          description: 'panel 2',
+          location: '客厅',
+          characters: JSON.stringify(['张三']),
+        }],
+      }],
+      panelVideoStates: {
+        getTaskState: () => null,
+      },
+      panelLipStates: {
+        getTaskState: () => null,
+      },
+    })
+
+    expect(result.allPanels).toHaveLength(2)
+    expect(result.allPanels[0]?.mergedGroupSize).toBe(2)
+    expect(result.allPanels[1]?.isMergedFollower).toBe(true)
+    expect(result.allPanels[1]?.mergedLeaderPanelIndex).toBe(0)
+    expect(result.allPanels[1]?.videoUrl).toBe('video/shared.mp4')
+  })
 })

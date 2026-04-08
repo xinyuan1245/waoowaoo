@@ -79,8 +79,6 @@
     "corePlaceholder": "Required",
     "extPlaceholder": "Not enabled"
   },
-  "imageModelTip": "We recommend using Google's Banana series models. Other image models currently have limited generation quality.",
-  "customProviderTip": "This project is currently in beta. Due to varying custom API formats across providers, custom API compatibility is still limited. We recommend using the built-in official APIs. Future updates will expand compatibility with more providers.",
   "providerPool": "Provider Pool",
   "providerPoolDesc": "Configure and use a rich selection of models from global providers",
   "dragToSort": "Drag to sort",
@@ -172,6 +170,7 @@
       "openrouter_step1": "Go to OpenRouter platform and create an API Key (must select models with image capabilities)",
       "fal_step1": "Go to FAL platform and create an API Key",
       "google_step1": "Go to Google AI Studio and create an API Key",
+      "deepseek_step1": "Go to DeepSeek platform and create an API Key",
       "minimax_step1": "Go to MiniMax platform and get an API Key",
       "vidu_step1": "Go to the Vidu platform and click 'Create API Key'",
       "openai_compatible_step1": "Enter any OpenAI-compatible service Base URL and API key",

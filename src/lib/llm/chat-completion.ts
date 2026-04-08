@@ -364,8 +364,9 @@ export async function chatCompletion(
       }
 
       const isOpenRouter = !!providerConfig.baseUrl?.includes('openrouter')
-      const providerName = isOpenRouter ? 'openrouter' : 'openai_compatible'
-      if (!isOpenRouter) {
+      const prefersNativeOpenAISdk = isOpenRouter || providerKey === 'deepseek'
+      const providerName = isOpenRouter ? 'openrouter' : providerKey === 'deepseek' ? 'deepseek' : 'openai_compatible'
+      if (!prefersNativeOpenAISdk) {
         const aiOpenAI = createOpenAI({
           baseURL: providerConfig.baseUrl,
           apiKey: providerConfig.apiKey,

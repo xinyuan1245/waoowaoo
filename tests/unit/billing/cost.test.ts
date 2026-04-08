@@ -16,6 +16,11 @@ describe('billing/cost', () => {
     expect(cost).toBeCloseTo((3 + 15) * USD_TO_CNY, 8)
   })
 
+  it('calculates deepseek text cost by known model price table', () => {
+    const cost = calcText('deepseek-chat', 1_000_000, 1_000_000)
+    expect(cost).toBeCloseTo(0.28 + 0.42, 8)
+  })
+
   it('throws when text model pricing is unknown', () => {
     expect(() => calcText('unknown-model', 500_000, 250_000)).toThrow('Unknown text model pricing')
   })

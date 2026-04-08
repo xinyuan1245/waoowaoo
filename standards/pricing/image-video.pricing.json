@@ -308,6 +308,50 @@
     }
   },
   {
+    "apiType": "text",
+    "provider": "deepseek",
+    "modelId": "deepseek-chat",
+    "pricing": {
+      "mode": "capability",
+      "tiers": [
+        {
+          "when": {
+            "tokenType": "input"
+          },
+          "amount": 0.28
+        },
+        {
+          "when": {
+            "tokenType": "output"
+          },
+          "amount": 0.42
+        }
+      ]
+    }
+  },
+  {
+    "apiType": "text",
+    "provider": "deepseek",
+    "modelId": "deepseek-reasoner",
+    "pricing": {
+      "mode": "capability",
+      "tiers": [
+        {
+          "when": {
+            "tokenType": "input"
+          },
+          "amount": 0.28
+        },
+        {
+          "when": {
+            "tokenType": "output"
+          },
+          "amount": 0.42
+        }
+      ]
+    }
+  },
+  {
     "apiType": "image",
     "provider": "fal",
     "modelId": "banana",

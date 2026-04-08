@@ -368,10 +368,6 @@ export function DefaultModelCards(allProps: DefaultModelCardsProps) {
                     </div>
                 </div>
                 <div className="glass-surface p-6 rounded-3xl border border-indigo-500/20 bg-indigo-500/[0.02] shadow-sm mb-8">
-                    <div className="flex items-start gap-2 mb-4 px-3 py-2.5 rounded-xl bg-amber-500/10 border border-amber-500/20 text-amber-700 dark:text-amber-400">
-                        <AppIcon name="alert" className="w-4 h-4 shrink-0 mt-0.5" />
-                        <span className="text-[12px] leading-relaxed">{t('imageModelTip')}</span>
-                    </div>
                     {/* Batch config header */}
                     <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6 pb-6 border-b border-indigo-500/10">
                         <div>

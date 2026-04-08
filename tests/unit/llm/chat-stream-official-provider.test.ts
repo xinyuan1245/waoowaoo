@@ -42,7 +42,7 @@ const runOpenAICompatChatCompletionMock = vi.hoisted(() =>
 )
 
 const getProviderConfigMock = vi.hoisted(() =>
-  vi.fn(async () => ({
+  vi.fn<typeof import('@/lib/api-config').getProviderConfig>(async () => ({
     id: 'bailian',
     name: 'Alibaba Bailian',
     apiKey: 'bl-key',
@@ -54,10 +54,45 @@ const getProviderConfigMock = vi.hoisted(() =>
 const logLlmRawInputMock = vi.hoisted(() => vi.fn())
 const logLlmRawOutputMock = vi.hoisted(() => vi.fn())
 const recordCompletionUsageMock = vi.hoisted(() => vi.fn())
+const streamTextMock = vi.hoisted(() =>
+  vi.fn(async () => {
+    throw new Error('ai sdk stream should not be called')
+  }),
+)
+const openAIStreamCreateMock = vi.hoisted(() =>
+  vi.fn(async () => ({
+    async *[Symbol.asyncIterator]() {
+      yield {
+        choices: [
+          {
+            delta: {
+              content: 'deepseek-stream-ok',
+            },
+          },
+        ],
+      }
+    },
+  })),
+)
 
 vi.mock('@/lib/model-gateway', () => ({
   resolveModelGatewayRoute: vi.fn(() => 'official'),
   runOpenAICompatChatCompletion: runOpenAICompatChatCompletionMock,
+}))
+
+vi.mock('ai', () => ({
+  streamText: streamTextMock,
+  generateText: vi.fn(),
+}))
+
+vi.mock('openai', () => ({
+  default: class OpenAI {
+    chat = {
+      completions: {
+        create: openAIStreamCreateMock,
+      },
+    }
+  },
 }))
 
 vi.mock('@/lib/api-config', () => ({
@@ -125,5 +160,41 @@ describe('llm chatCompletionStream official provider branch', () => {
     )
     expect(completion.choices[0]?.message?.content).toBe('stream-ok')
     expect(recordCompletionUsageMock).toHaveBeenCalledTimes(1)
+  })
+
+  it('uses native openai sdk stream path for deepseek official provider', async () => {
+    resolveLlmRuntimeModelMock.mockResolvedValueOnce({
+      provider: 'deepseek',
+      modelId: 'deepseek-chat',
+      modelKey: 'deepseek::deepseek-chat',
+    })
+    getProviderConfigMock.mockResolvedValueOnce({
+      id: 'deepseek',
+      name: 'DeepSeek',
+      apiKey: 'ds-key',
+      baseUrl: 'https://api.deepseek.com',
+      gatewayRoute: 'official' as const,
+    })
+
+    const onChunk = vi.fn()
+    const onComplete = vi.fn()
+
+    const completion = await chatCompletionStream(
+      'user-1',
+      'deepseek::deepseek-chat',
+      [{ role: 'user', content: 'hello deepseek' }],
+      {},
+      { onChunk, onComplete },
+    )
+
+    expect(streamTextMock).not.toHaveBeenCalled()
+    expect(openAIStreamCreateMock).toHaveBeenCalledWith({
+      model: 'deepseek-chat',
+      messages: [{ role: 'user', content: 'hello deepseek' }],
+      temperature: 0.7,
+      stream: true,
+    })
+    expect(onComplete).toHaveBeenCalledWith('deepseek-stream-ok', undefined)
+    expect(completion.choices[0]?.message?.content).toBe('deepseek-stream-ok')
   })
 })

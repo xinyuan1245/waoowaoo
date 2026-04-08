@@ -15,6 +15,7 @@ import {
 } from '@/lib/model-capabilities/lookup'
 import { resolveBuiltinPricing } from '@/lib/model-pricing/lookup'
 import { resolveProjectModelCapabilityGenerationOptions } from '@/lib/config-service'
+import { buildVideoShotGroups, findVideoShotGroupForPanel } from '@/lib/video-shot-grouping'
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return !!value && typeof value === 'object' && !Array.isArray(value)
@@ -45,6 +46,19 @@ function isSeedance2Model(modelKey: string): boolean {
       parsed.modelId === 'doubao-seedance-2-0-260128'
       || parsed.modelId === 'doubao-seedance-2-0-fast-260128'
     )
+}
+
+type RouteGroupingPanel = {
+  id: string
+  storyboardId: string
+  panelIndex: number
+  location: string | null
+  characters: string | null
+  videoPrompt: string | null
+  description: string | null
+  shotType: string | null
+  cameraMove: string | null
+  duration: number | null
 }
 
 function resolveVideoModelKeyFromPayload(payload: Record<string, unknown>): string | null {
@@ -209,17 +223,60 @@ export const POST = apiHandler(async (
       throw new ApiError('INVALID_PARAMS')
     }
 
-    const panels = await prisma.novelPromotionPanel.findMany({
-      where: {
-        storyboard: { episodeId },
-        imageUrl: { not: null },
-        OR: [
-          { videoUrl: null },
-          { videoUrl: '' },
-        ],
-      },
-      select: { id: true },
-    })
+    const modelKey = requireVideoModelKeyFromPayload(body)
+    const isSeedanceAutoMerge = isSeedance2Model(modelKey) && !isRecord(body?.firstLastFrame)
+    let panels: Array<{ id: string }> = []
+
+    if (isSeedanceAutoMerge) {
+      const storyboards = await prisma.novelPromotionStoryboard.findMany({
+        where: { episodeId },
+        select: {
+          id: true,
+          panels: {
+            where: {
+              imageUrl: { not: null },
+              OR: [
+                { videoUrl: null },
+                { videoUrl: '' },
+              ],
+            },
+            orderBy: { panelIndex: 'asc' },
+            select: {
+              id: true,
+              storyboardId: true,
+              panelIndex: true,
+              location: true,
+              characters: true,
+              videoPrompt: true,
+              description: true,
+              shotType: true,
+              cameraMove: true,
+              duration: true,
+            },
+          },
+        },
+      })
+
+      panels = storyboards.flatMap((storyboard) => {
+        const groups = buildVideoShotGroups(storyboard.panels as RouteGroupingPanel[])
+        return groups
+          .map((group) => group.members[0])
+          .filter((panel): panel is RouteGroupingPanel => !!panel?.id)
+          .map((panel) => ({ id: panel.id }))
+      })
+    } else {
+      panels = await prisma.novelPromotionPanel.findMany({
+        where: {
+          storyboard: { episodeId },
+          imageUrl: { not: null },
+          OR: [
+            { videoUrl: null },
+            { videoUrl: '' },
+          ],
+        },
+        select: { id: true },
+      })
+    }
 
     if (panels.length === 0) {
       return NextResponse.json({ tasks: [], total: 0 })
@@ -256,12 +313,50 @@ export const POST = apiHandler(async (
 
   const panel = await prisma.novelPromotionPanel.findFirst({
     where: { storyboardId, panelIndex: Number(panelIndex) },
-    select: { id: true },
+    select: {
+      id: true,
+      storyboardId: true,
+      panelIndex: true,
+      storyboard: {
+        select: {
+          panels: {
+            where: {
+              imageUrl: { not: null },
+            },
+            orderBy: { panelIndex: 'asc' },
+            select: {
+              id: true,
+              storyboardId: true,
+              panelIndex: true,
+              location: true,
+              characters: true,
+              videoPrompt: true,
+              description: true,
+              shotType: true,
+              cameraMove: true,
+              duration: true,
+            },
+          },
+        },
+      },
+    },
   })
 
   if (!panel) {
     throw new ApiError('NOT_FOUND')
   }
+
+  const modelKey = requireVideoModelKeyFromPayload(body)
+  const autoMergedPanel = isSeedance2Model(modelKey) && !isRecord(body?.firstLastFrame)
+    ? (() => {
+      const group = findVideoShotGroupForPanel(
+        (panel.storyboard?.panels || []) as RouteGroupingPanel[],
+        panel.storyboardId,
+        panel.panelIndex,
+      )
+      return group?.members[0] || panel
+    })()
+    : panel
 
   const result = await submitTask({
     userId: session.user.id,
@@ -270,11 +365,11 @@ export const POST = apiHandler(async (
     projectId,
     type: TASK_TYPE.VIDEO_PANEL,
     targetType: 'NovelPromotionPanel',
-    targetId: panel.id,
+    targetId: autoMergedPanel.id,
     payload: withTaskUiPayload(body, {
-      hasOutputAtStart: await hasPanelVideoOutput(panel.id),
+      hasOutputAtStart: await hasPanelVideoOutput(autoMergedPanel.id),
     }),
-    dedupeKey: `video_panel:${panel.id}`,
+    dedupeKey: `video_panel:${autoMergedPanel.id}`,
     billingInfo: buildVideoPanelBillingInfoOrThrow(body),
   })
 

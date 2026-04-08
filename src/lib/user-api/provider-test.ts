@@ -19,6 +19,7 @@ export interface TestProviderResult {
 
 type PresetProviderType = 'ark' | 'google' | 'openrouter' | 'minimax' | 'fal' | 'vidu'
   | 'bailian'
+  | 'deepseek'
   | 'siliconflow'
 type CompatibleProviderType = 'openai-compatible' | 'gemini-compatible'
 
@@ -828,6 +829,10 @@ async function testBailianProvider(apiKey: string): Promise<TestProviderResult> 
   }
 }
 
+async function testDeepSeekProvider(apiKey: string, llmModel?: string): Promise<TestProviderResult> {
+  return testCompatibleProvider('https://api.deepseek.com', apiKey, llmModel)
+}
+
 // ---------------------------------------------------------------------------
 // Public API
 // ---------------------------------------------------------------------------
@@ -869,6 +874,8 @@ export async function testProviderConnection(payload: TestProviderPayload): Prom
       return testViduProvider(apiKey)
     case 'bailian':
       return testBailianProvider(apiKey)
+    case 'deepseek':
+      return testDeepSeekProvider(apiKey, llmModel)
     case 'siliconflow':
       return testSiliconFlowProvider(apiKey)
     default:

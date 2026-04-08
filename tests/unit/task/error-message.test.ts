@@ -80,4 +80,14 @@ describe('task error message normalization', () => {
     expect(summary.code).toBe('EMPTY_RESPONSE')
     expect(summary.message).toContain('模型返回空响应')
   })
+
+  it('prefers user-friendly message for MODEL_NOT_CONFIGURED', () => {
+    const summary = resolveTaskErrorSummary({
+      error: {
+        message: 'Character model not configured',
+      },
+    })
+    expect(summary.code).toBe('MODEL_NOT_CONFIGURED')
+    expect(summary.message).toContain('未配置可用模型')
+  })
 })

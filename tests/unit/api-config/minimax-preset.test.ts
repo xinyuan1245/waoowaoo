@@ -19,4 +19,16 @@ describe('api-config minimax preset', () => {
     expect(minimaxLlmModelIds).toContain('MiniMax-M2.1-highspeed')
     expect(minimaxLlmModelIds).toContain('MiniMax-M2')
   })
+
+  it('includes deepseek preset provider and official llm models', () => {
+    const deepseekProvider = PRESET_PROVIDERS.find((provider) => provider.id === 'deepseek')
+    const deepseekLlmModelIds = PRESET_MODELS
+      .filter((model) => model.provider === 'deepseek' && model.type === 'llm')
+      .map((model) => model.modelId)
+
+    expect(deepseekProvider).toBeDefined()
+    expect(deepseekProvider?.baseUrl).toBe('https://api.deepseek.com')
+    expect(deepseekLlmModelIds).toContain('deepseek-chat')
+    expect(deepseekLlmModelIds).toContain('deepseek-reasoner')
+  })
 })

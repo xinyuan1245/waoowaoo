@@ -18,4 +18,17 @@ describe('assistant-platform system prompts', () => {
     expect(prompt).toContain('你是产品教程助手')
     expect(prompt).toContain('禁止编造不存在的页面')
   })
+
+  it('loads seedance 2.0 video skill prompt from lib/prompts/skills', () => {
+    const prompt = renderAssistantSystemPrompt('seedance-2.0-video', {
+      aspectRatio: '16:9',
+      durationSeconds: '5',
+      generationMode: 'normal',
+    })
+
+    expect(prompt).toContain('你是 Seedance 2.0 视频提示词优化技能')
+    expect(prompt).toContain('画幅比例：16:9')
+    expect(prompt).toContain('视频时长（秒）：5')
+    expect(prompt).not.toContain('{{aspectRatio}}')
+  })
 })

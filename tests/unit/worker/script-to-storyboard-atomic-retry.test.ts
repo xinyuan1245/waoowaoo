@@ -222,4 +222,139 @@ describe('script-to-storyboard atomic retry', () => {
       runStep,
     })).rejects.toThrow('missing dependency artifact: storyboard.clip.phase3')
   })
+
+  it('phase3 重试时 panel_number 错位会回退到同索引规则', async () => {
+    listArtifactsMock.mockImplementation(async (params: {
+      runId: string
+      artifactType?: string
+      refId?: string
+    }) => {
+      if (params.refId !== 'clip-1') return []
+      if (params.artifactType === 'storyboard.clip.phase1') {
+        return [{
+          id: 'a1',
+          runId: params.runId,
+          stepKey: 'clip_clip-1_phase1',
+          artifactType: 'storyboard.clip.phase1',
+          refId: 'clip-1',
+          versionHash: null,
+          payload: {
+            panels: [
+              { panel_number: 1, description: 'p1', location: 'Office', source_text: 'src1', characters: [] },
+              { panel_number: 2, description: 'p2', location: 'Office', source_text: 'src2', characters: [] },
+            ],
+          },
+          createdAt: '2026-03-03T00:00:00.000Z',
+        }]
+      }
+      if (params.artifactType === 'storyboard.clip.phase2.cine') {
+        return [{
+          id: 'a2',
+          runId: params.runId,
+          stepKey: 'clip_clip-1_phase2_cinematography',
+          artifactType: 'storyboard.clip.phase2.cine',
+          refId: 'clip-1',
+          versionHash: null,
+          payload: {
+            rules: [
+              {
+                panel_number: 101,
+                composition: '近景',
+                lighting: '侧光',
+                color_palette: '冷色',
+                atmosphere: '紧张',
+                technical_notes: 'note-1',
+              },
+              {
+                panel_number: 102,
+                composition: '远景',
+                lighting: '逆光',
+                color_palette: '灰蓝',
+                atmosphere: '压抑',
+                technical_notes: 'note-2',
+              },
+            ],
+          },
+          createdAt: '2026-03-03T00:00:00.000Z',
+        }]
+      }
+      if (params.artifactType === 'storyboard.clip.phase2.acting') {
+        return [{
+          id: 'a3',
+          runId: params.runId,
+          stepKey: 'clip_clip-1_phase2_acting',
+          artifactType: 'storyboard.clip.phase2.acting',
+          refId: 'clip-1',
+          versionHash: null,
+          payload: {
+            directions: [
+              { panel_number: 101, characters: [{ name: 'Narrator', expression: 'serious' }] },
+              { panel_number: 102, characters: [{ name: 'Narrator', expression: 'tense' }] },
+            ],
+          },
+          createdAt: '2026-03-03T00:00:00.000Z',
+        }]
+      }
+      if (params.artifactType === 'storyboard.clip.phase3') {
+        return []
+      }
+      return []
+    })
+
+    const runStep = vi.fn(async (_meta, _prompt, action: string) => {
+      if (action !== 'storyboard_phase3_detail') {
+        throw new Error(`unexpected action ${action}`)
+      }
+      return {
+        text: JSON.stringify([
+          { panel_number: 1, description: 'phase3-new-1', location: 'Office', source_text: 'src1', characters: [] },
+          { panel_number: 25, description: 'phase3-new-2', location: 'Office', source_text: 'src2', characters: [] },
+        ]),
+        reasoning: '',
+      }
+    })
+
+    const result = await runScriptToStoryboardAtomicRetry({
+      runId: 'run-3',
+      retryTarget: {
+        stepKey: 'clip_clip-1_phase3_detail',
+        clipId: 'clip-1',
+        phase: 'phase3_detail',
+      },
+      retryStepAttempt: 4,
+      clip: {
+        id: 'clip-1',
+        content: 'clip content',
+        characters: JSON.stringify([{ name: 'Narrator' }]),
+        location: 'Office',
+        screenplay: null,
+      },
+      clipIndex: 0,
+      totalClipCount: 1,
+      novelPromotionData: {
+        characters: [{ name: 'Narrator', appearances: [] }],
+        locations: [{ name: 'Office', images: [{ description: 'room desc' }] }],
+      },
+      promptTemplates: {
+        phase1PlanTemplate: '{clip_content}',
+        phase2CinematographyTemplate: '{panels_json} {panel_count} {locations_description} {characters_info}',
+        phase2ActingTemplate: '{panels_json} {panel_count} {characters_info}',
+        phase3DetailTemplate: '{panels_json} {characters_age_gender} {locations_description}',
+      },
+      runStep,
+    })
+
+    expect(result.clipPanels[0]?.finalPanels).toEqual([
+      expect.objectContaining({
+        panel_number: 1,
+        photographyPlan: expect.objectContaining({ composition: '近景', lighting: '侧光' }),
+        actingNotes: [{ name: 'Narrator', expression: 'serious' }],
+      }),
+      expect.objectContaining({
+        panel_number: 25,
+        photographyPlan: expect.objectContaining({ composition: '远景', lighting: '逆光' }),
+        actingNotes: [{ name: 'Narrator', expression: 'tense' }],
+      }),
+    ])
+  })
 })

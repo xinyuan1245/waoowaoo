@@ -82,6 +82,9 @@ export interface VideoPanel {
   panelId?: string  // 任务目标ID
   storyboardId: string
   panelIndex: number
+  mergedLeaderPanelIndex?: number
+  mergedGroupSize?: number
+  isMergedFollower?: boolean
   textPanel?: TextPanel
   firstLastFramePrompt?: string
   imageUrl?: string

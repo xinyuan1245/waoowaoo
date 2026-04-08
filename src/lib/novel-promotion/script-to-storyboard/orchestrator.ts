@@ -176,11 +176,11 @@ function mergePanelsWithRules(params: {
 }) {
   const { finalPanels, photographyRules, actingDirections } = params
   return finalPanels.map((panel, index) => {
-    const rules = photographyRules.find((rule) => rule.panel_number === panel.panel_number)
+    const rules = photographyRules.find((rule) => rule.panel_number === panel.panel_number) ?? photographyRules[index]
     if (!rules) {
       throw new Error(`Missing photography rule for panel_number=${String(panel.panel_number)} at index=${index}`)
     }
-    const acting = actingDirections.find((item) => item.panel_number === panel.panel_number)
+    const acting = actingDirections.find((item) => item.panel_number === panel.panel_number) ?? actingDirections[index]
     if (!acting) {
       throw new Error(`Missing acting direction for panel_number=${String(panel.panel_number)} at index=${index}`)
     }

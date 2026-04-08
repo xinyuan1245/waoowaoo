@@ -68,6 +68,17 @@ function isModelNotConfiguredMessage(message: string): boolean {
   return containsAny(message, [
     'model_not_found',
     'model_not_configured',
+    'character model not configured',
+    'location model not configured',
+    'storyboard model not configured',
+    'edit model not configured',
+    'analysis model not configured',
+    'video model not configured',
+    'audio model not configured',
+    'lip sync model not configured',
+    'lipsync model not configured',
+    'voice design model not configured',
+    'user character model not configured',
     'is not enabled for image',
     'is not enabled for video',
     'is not enabled for audio',
@@ -83,6 +94,7 @@ function isModelNotConfiguredMessage(message: string): boolean {
     'multiple audio models are enabled',
     'multiple lipsync models are enabled',
     'multiple llm models are enabled',
+    'please go to settings and add the required model type before generating',
   ])
 }
 

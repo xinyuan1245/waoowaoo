@@ -350,10 +350,6 @@ export function ApiConfigTabContainer() {
         }
       >
         <div className="space-y-3">
-          <div className="flex items-start gap-2 px-3 py-2.5 rounded-xl bg-amber-500/10 border border-amber-500/20 text-amber-700 dark:text-amber-400">
-            <AppIcon name="alert" className="w-4 h-4 shrink-0 mt-0.5" />
-            <span className="text-[12px] leading-relaxed">{t('customProviderTip')}</span>
-          </div>
           <div>
             <label className="mb-1.5 block text-xs font-medium text-[var(--glass-text-primary)]">
               {t('apiType')}

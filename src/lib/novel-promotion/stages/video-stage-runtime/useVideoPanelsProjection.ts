@@ -6,6 +6,7 @@ import type {
   Storyboard,
   VideoPanel,
 } from '@/app/[locale]/workspace/[projectId]/modes/novel-promotion/components/video'
+import { buildVideoShotGroups } from '@/lib/video-shot-grouping'
 
 interface TaskStateLike {
   phase?: string | null
@@ -102,6 +103,47 @@ export function useVideoPanelsProjection({
         })
       })
     })
+
+    const groups = buildVideoShotGroups(
+      panels.map((panel) => ({
+        ...panel,
+        location: panel.textPanel?.location || '',
+        characters: panel.textPanel?.characters || [],
+        videoPrompt: panel.textPanel?.video_prompt || '',
+        description: panel.textPanel?.description || '',
+        shotType: panel.textPanel?.shot_type || '',
+        cameraMove: panel.textPanel?.camera_move || '',
+        duration: panel.textPanel?.duration || null,
+      })),
+    )
+
+    const panelByKey = new Map<string, VideoPanel>(
+      panels.map((panel) => [`${panel.storyboardId}:${panel.panelIndex}`, panel] as const),
+    )
+
+    for (const group of groups) {
+      if (group.members.length <= 1) continue
+      const leader = panelByKey.get(`${group.storyboardId}:${group.leaderPanelIndex}`)
+      if (!leader) continue
+      for (const member of group.members) {
+        const key = `${member.storyboardId}:${member.panelIndex}`
+        const target = panelByKey.get(key)
+        if (!target) continue
+        target.mergedLeaderPanelIndex = leader.panelIndex
+        target.mergedGroupSize = group.members.length
+        target.isMergedFollower = target.panelIndex !== leader.panelIndex
+
+        if (target.panelIndex === leader.panelIndex) continue
+
+        target.videoUrl = target.videoUrl || leader.videoUrl
+        target.videoGenerationMode = target.videoGenerationMode || leader.videoGenerationMode
+        target.videoTaskRunning = target.videoTaskRunning || leader.videoTaskRunning
+        target.videoErrorCode = target.videoErrorCode || leader.videoErrorCode
+        target.videoErrorMessage = target.videoErrorMessage || leader.videoErrorMessage
+        target.videoModel = target.videoModel || leader.videoModel
+      }
+    }
+
     return panels
   }, [panelLipStates, panelVideoStates, sortedStoryboards])
 

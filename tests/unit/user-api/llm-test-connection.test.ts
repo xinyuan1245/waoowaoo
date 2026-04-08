@@ -94,4 +94,23 @@ describe('llm test connection', () => {
     expect(result.model).toBe('Qwen/Qwen3-32B')
     expect(result.answer).toBe('balance=9.8000')
   })
+
+  it('tests deepseek provider via official openai-compatible endpoint', async () => {
+    const result = await testLlmConnection({
+      provider: 'deepseek',
+      apiKey: 'ds-key',
+      model: 'deepseek-chat',
+    })
+
+    expect(result.provider).toBe('deepseek')
+    expect(result.message).toBe('deepseek 连接成功')
+    expect(result.model).toBe('gpt-4.1-mini')
+    expect(result.answer).toBe('2')
+    expect(openAIState.create).toHaveBeenCalledWith({
+      model: 'deepseek-chat',
+      messages: [{ role: 'user', content: '1+1等于几？只回答数字' }],
+      max_tokens: 10,
+      temperature: 0,
+    })
+  })
 })

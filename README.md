@@ -83,7 +83,8 @@ cd waoowaoo
 
 # 复制环境变量配置文件（必须在 npm install 之前完成）
 cp .env.example .env
-# ⚠️ 编辑 .env，填入你的 AI API Key（NEXTAUTH_URL 默认已是 http://localhost:3000，无需修改）
+# ⚠️ 编辑 .env，填入你的 AI API Key
+# 如果需要同一局域网内其他设备访问，请把 NEXTAUTH_URL 改成当前机器局域网 IP，例如 http://192.168.1.23:3000
 
 npm install
 
@@ -105,6 +106,8 @@ npm run dev
 ---
 
 访问 [http://localhost:13000](http://localhost:13000)（方式一、二）或 [http://localhost:3000](http://localhost:3000)（方式三）开始使用！
+
+局域网访问示例：`http://你的局域网IP:3000`
 
 > 首次启动会自动完成数据库初始化，无需任何额外配置。
 

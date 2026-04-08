@@ -25,7 +25,7 @@ const withTaskLifecycleMock = vi.hoisted(() =>
 
 const utilsMock = vi.hoisted(() => ({
   assertTaskActive: vi.fn(async () => undefined),
-  getProjectModels: vi.fn(async () => ({ videoRatio: '16:9' })),
+  getProjectModels: vi.fn(async () => ({ videoRatio: '16:9', analysisModel: 'openai::gpt-4.1' })),
   resolveLipSyncVideoSource: vi.fn(async () => 'https://provider.example/lipsync.mp4'),
   resolveVideoSourceFromGeneration: vi.fn<(...args: unknown[]) => Promise<{ url: string; actualVideoTokens?: number; downloadHeaders?: Record<string, string> }>>(async () => ({ url: 'https://provider.example/video.mp4' })),
   toSignedUrlIfCos: vi.fn((url: string | null) => (url ? `https://signed.example/${url}` : null)),
@@ -43,12 +43,19 @@ const concurrencyGateMock = vi.hoisted(() => ({
     run: () => Promise<T>
   }) => await input.run()),
 }))
+const videoPromptSkillsMock = vi.hoisted(() => ({
+  maybeOptimizeVideoPromptForModel: vi.fn(async ({ prompt }: { prompt: string }) => prompt),
+  usesSeedance20VideoSkill: vi.fn((modelKey: string) => modelKey.startsWith('ark::doubao-seedance-2-0')),
+}))
 
 const prismaMock = vi.hoisted(() => ({
   novelPromotionPanel: {
     findUnique: vi.fn(),
     findFirst: vi.fn(),
     update: vi.fn(async () => undefined),
+  },
+  novelPromotionStoryboard: {
+    findUnique: vi.fn(),
   },
   novelPromotionVoiceLine: {
     findUnique: vi.fn(),
@@ -98,6 +105,7 @@ vi.mock('@/lib/api-config', () => ({
 }))
 vi.mock('@/lib/config-service', () => configServiceMock)
 vi.mock('@/lib/workers/user-concurrency-gate', () => concurrencyGateMock)
+vi.mock('@/lib/video-prompt-skills', () => videoPromptSkillsMock)
 
 function buildPanel(overrides?: Partial<PanelRow>): PanelRow {
   return {
@@ -137,9 +145,30 @@ describe('worker video processor behavior', () => {
   beforeEach(async () => {
     vi.clearAllMocks()
     workerState.processor = null
+    configServiceMock.getUserWorkflowConcurrencyConfig.mockResolvedValue({
+      analysis: 5,
+      image: 5,
+      video: 5,
+    })
+    videoPromptSkillsMock.maybeOptimizeVideoPromptForModel.mockImplementation(async ({ prompt }: { prompt: string }) => prompt)
 
     prismaMock.novelPromotionPanel.findUnique.mockResolvedValue(buildPanel())
     prismaMock.novelPromotionPanel.findFirst.mockResolvedValue(buildPanel())
+    prismaMock.novelPromotionStoryboard.findUnique.mockResolvedValue({
+      id: 'storyboard-1',
+      panels: [{
+        id: 'panel-1',
+        storyboardId: 'storyboard-1',
+        panelIndex: 0,
+        location: '场景A',
+        characters: JSON.stringify(['角色A']),
+        videoPrompt: 'panel prompt',
+        description: 'panel description',
+        shotType: '中景',
+        cameraMove: '固定',
+        duration: 5,
+      }],
+    })
     prismaMock.novelPromotionVoiceLine.findUnique.mockResolvedValue({
       id: 'line-1',
       audioUrl: 'cos/line-1.mp3',
@@ -222,6 +251,72 @@ describe('worker video processor behavior', () => {
       videoUrl: 'cos/lip-sync/video.mp4',
       actualVideoTokens: 108000,
     })
+  })
+
+  it('VIDEO_PANEL: Seedance 2.0 生成前会走提示词优化 skill', async () => {
+    const processor = workerState.processor
+    expect(processor).toBeTruthy()
+
+    videoPromptSkillsMock.maybeOptimizeVideoPromptForModel.mockResolvedValueOnce('optimized cinematic prompt')
+
+    const job = buildJob({
+      type: TASK_TYPE.VIDEO_PANEL,
+      payload: {
+        videoModel: 'ark::doubao-seedance-2-0-260128',
+        generationOptions: {
+          duration: 5,
+          resolution: '720p',
+        },
+      },
+    })
+
+    await processor!(job)
+
+    expect(videoPromptSkillsMock.maybeOptimizeVideoPromptForModel).toHaveBeenCalledWith(expect.objectContaining({
+      modelKey: 'ark::doubao-seedance-2-0-260128',
+      analysisModel: 'openai::gpt-4.1',
+      prompt: 'panel prompt',
+      durationSeconds: 5,
+      aspectRatio: '16:9',
+      generationMode: 'normal',
+    }))
+    expect(utilsMock.resolveVideoSourceFromGeneration).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({
+        options: expect.objectContaining({
+          prompt: 'optimized cinematic prompt',
+        }),
+      }),
+    )
+  })
+
+  it('VIDEO_PANEL: 非 Seedance 2.0 模型不会改写原始提示词', async () => {
+    const processor = workerState.processor
+    expect(processor).toBeTruthy()
+
+    const job = buildJob({
+      type: TASK_TYPE.VIDEO_PANEL,
+      payload: {
+        videoModel: 'google::veo-3.1-generate-preview',
+        generationOptions: {
+          duration: 5,
+        },
+      },
+    })
+
+    await processor!(job)
+
+    expect(videoPromptSkillsMock.maybeOptimizeVideoPromptForModel).toHaveBeenCalledWith(expect.objectContaining({
+      modelKey: 'google::veo-3.1-generate-preview',
+    }))
+    expect(utilsMock.resolveVideoSourceFromGeneration).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({
+        options: expect.objectContaining({
+          prompt: 'panel prompt',
+        }),
+      }),
+    )
   })
 
   it('LIP_SYNC: 缺少 panel 时显式失败', async () => {

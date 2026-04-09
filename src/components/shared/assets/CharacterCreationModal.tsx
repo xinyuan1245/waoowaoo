@@ -61,8 +61,6 @@ export function CharacterCreationModal({
     isExtracting,
     characterGenerationCount,
     setCharacterGenerationCount,
-    referenceCharacterGenerationCount,
-    setReferenceCharacterGenerationCount,
     handleExtractDescription,
     handleCreateWithReference,
     handleAiDesign,
@@ -226,19 +224,13 @@ export function CharacterCreationModal({
             {t('common.cancel')}
           </button>
           {createMode === 'reference' ? (
-            <ImageGenerationInlineCountButton
-              prefix={<span>{t('character.useReferenceGeneratePrefix')}</span>}
-              suffix={<span>{t('character.generateCountSuffix')}</span>}
-              value={referenceCharacterGenerationCount}
-              options={getImageGenerationCountOptions('reference-to-character')}
-              onValueChange={setReferenceCharacterGenerationCount}
+            <button
               onClick={() => { void handleCreateWithReference() }}
-              actionDisabled={!name.trim() || referenceImagesBase64.length === 0}
-              selectDisabled={isSubmitting}
-              ariaLabel={t('character.selectReferenceGenerateCount')}
               className="glass-btn-base glass-btn-primary flex items-center justify-center gap-1 rounded-lg px-4 py-2 text-sm disabled:opacity-40 disabled:cursor-not-allowed"
-              selectClassName="appearance-none bg-transparent border-0 pl-0 pr-3 text-sm font-semibold text-current outline-none cursor-pointer leading-none transition-colors"
-            />
+              disabled={isSubmitting || !name.trim() || referenceImagesBase64.length === 0}
+            >
+              {isSubmitting ? t('common.creating') : t('character.useReferenceGenerateThreeViews')}
+            </button>
           ) : isSubAppearance ? (
             <button
               onClick={() => { void handleSubmit() }}

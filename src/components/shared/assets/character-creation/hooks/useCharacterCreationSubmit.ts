@@ -82,10 +82,6 @@ export function useCharacterCreationSubmit({
     count: characterGenerationCount,
     setCount: setCharacterGenerationCount,
   } = useImageGenerationCount('character')
-  const {
-    count: referenceCharacterGenerationCount,
-    setCount: setReferenceCharacterGenerationCount,
-  } = useImageGenerationCount('reference-to-character')
 
   type CreatedCharacterResponse = {
     character?: {
@@ -161,7 +157,6 @@ export function useCharacterCreationSubmit({
           generateFromReference: true,
           referenceImageUrls,
           customDescription: referenceSubMode === 'extract' ? finalDescription : undefined,
-          count: referenceCharacterGenerationCount,
         })
       } else {
         await createProjectCharacter.mutateAsync({
@@ -170,7 +165,6 @@ export function useCharacterCreationSubmit({
           generateFromReference: true,
           referenceImageUrls,
           customDescription: referenceSubMode === 'extract' ? finalDescription : undefined,
-          count: referenceCharacterGenerationCount,
         })
       }
 
@@ -366,8 +360,6 @@ export function useCharacterCreationSubmit({
     isExtracting,
     characterGenerationCount,
     setCharacterGenerationCount,
-    referenceCharacterGenerationCount,
-    setReferenceCharacterGenerationCount,
     handleExtractDescription,
     handleCreateWithReference,
     handleAiDesign,

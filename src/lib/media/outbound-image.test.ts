@@ -8,8 +8,12 @@ import {
 } from './outbound-image'
 import { resolveStorageKeyFromMediaValue } from '@/lib/media/service'
 
+const getObjectBufferMock = vi.hoisted(() => vi.fn())
 vi.mock('@/lib/storage', () => ({
-  getSignedUrl: vi.fn((key: string) => `/signed/${key}`),
+  getObjectBuffer: getObjectBufferMock,
+  getSignedUrl: vi.fn(
+    (key: string, expires: number) => `/api/storage/sign?key=${encodeURIComponent(key)}&expires=${expires}`,
+  ),
   toFetchableUrl: vi.fn((value: string) => (
     value.startsWith('/') ? `http://localhost:3000${value}` : value
   )),
@@ -52,6 +56,7 @@ describe('outbound-image normalization', () => {
       headers: new Headers({ 'content-type': 'image/png' }),
       arrayBuffer: async () => pngBytes(),
     } as unknown as Response)
+    getObjectBufferMock.mockResolvedValue(Buffer.from(pngBytes()))
   })
 
   it('keeps data url unchanged', async () => {
@@ -70,7 +75,9 @@ describe('outbound-image normalization', () => {
   it('unwraps next/image and resolves /m route to signed source', async () => {
     const input = '/_next/image?url=%2Fm%2Fpub-1&w=640&q=75'
     const normalized = await normalizeToOriginalMediaUrl(input)
-    expect(normalized).toBe('http://localhost:3000/signed/images/from-media.png')
+    expect(normalized).toBe(
+      'http://localhost:3000/api/storage/sign?key=images%2Ffrom-media.png&expires=3600',
+    )
   })
 
   it('fails explicitly when /m route cannot be resolved to storage key', async () => {
@@ -82,7 +89,9 @@ describe('outbound-image normalization', () => {
 
   it('signs storage key inputs', async () => {
     const normalized = await normalizeToOriginalMediaUrl('images/direct.png')
-    expect(normalized).toBe('http://localhost:3000/signed/images/direct.png')
+    expect(normalized).toBe(
+      'http://localhost:3000/api/storage/sign?key=images%2Fdirect.png&expires=3600',
+    )
   })
 
   it('normalizes api relative path to absolute fetchable url', async () => {
@@ -105,6 +114,17 @@ describe('outbound-image normalization', () => {
   it('converts normalized source to data url base64 payload', async () => {
     const dataUrl = await normalizeToBase64ForGeneration('images/direct.png')
     expect(dataUrl).toMatch(/^data:image\/png;base64,/)
+    expect(getObjectBufferMock).toHaveBeenCalledWith('images/direct.png')
+    expect(fetchMock).not.toHaveBeenCalled()
+  })
+
+  it('reads internal storage sign urls directly without fetching the api route', async () => {
+    const dataUrl = await normalizeToBase64ForGeneration(
+      'http://127.0.0.1:3000/api/storage/sign?key=images%2Fpanel-candidate.jpg&expires=3600',
+    )
+    expect(dataUrl).toMatch(/^data:image\/png;base64,/)
+    expect(getObjectBufferMock).toHaveBeenCalledWith('images/panel-candidate.jpg')
+    expect(fetchMock).not.toHaveBeenCalled()
   })
 
   it('sniffs png mime when upstream returns application/octet-stream', async () => {
@@ -114,6 +134,7 @@ describe('outbound-image normalization', () => {
       headers: new Headers({ 'content-type': 'application/octet-stream' }),
       arrayBuffer: async () => pngBytes(),
     } as Response)
+    getObjectBufferMock.mockResolvedValue(Buffer.from(pngBytes()))
 
     const dataUrl = await normalizeToBase64ForGeneration('images/direct.png')
     expect(dataUrl).toMatch(/^data:image\/png;base64,/)
@@ -126,6 +147,7 @@ describe('outbound-image normalization', () => {
       headers: new Headers({ 'content-type': 'application/octet-stream' }),
       arrayBuffer: async () => jpegBytes(),
     } as Response)
+    getObjectBufferMock.mockResolvedValue(Buffer.from(jpegBytes()))
 
     const dataUrl = await normalizeToBase64ForGeneration('images/direct.jpg')
     expect(dataUrl).toMatch(/^data:image\/jpeg;base64,/)
@@ -166,7 +188,7 @@ describe('outbound-image normalization', () => {
       arrayBuffer: async () => new ArrayBuffer(0),
     } as Response)
 
-    const normalized = await normalizeReferenceImagesForGeneration(['images/missing.png'], {
+    const normalized = await normalizeReferenceImagesForGeneration(['/api/missing.png'], {
       requireAtLeastOne: false,
     })
 
@@ -190,7 +212,7 @@ describe('outbound-image normalization', () => {
     }> = []
 
     await expect(
-      normalizeReferenceImagesForGeneration(['images/bad.png'], {
+      normalizeReferenceImagesForGeneration(['/api/bad.png'], {
         onIssue: (issue) => issues.push(issue),
       }),
     ).rejects.toMatchObject({
@@ -201,7 +223,7 @@ describe('outbound-image normalization', () => {
     expect(issues[0]).toMatchObject({
       code: 'OUTBOUND_IMAGE_FETCH_FAILED',
       stage: 'normalize_base64',
-      input: 'images/bad.png',
+      input: '/api/bad.png',
       index: 0,
     })
   })

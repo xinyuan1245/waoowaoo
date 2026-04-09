@@ -3,7 +3,10 @@ import sharp from 'sharp'
 import { createScopedLogger } from '@/lib/logging/core'
 import { resolveStorageKeyFromMediaValue } from '@/lib/media/service'
 
-type StorageHelpers = Pick<typeof import('@/lib/storage'), 'getSignedUrl' | 'toFetchableUrl'>
+type StorageHelpers = Pick<
+  typeof import('@/lib/storage'),
+  'getObjectBuffer' | 'getSignedUrl' | 'toFetchableUrl'
+>
 
 type InputIssueReason =
   | 'next_image_unwrapped'
@@ -91,6 +94,7 @@ let storageHelpersPromise: Promise<StorageHelpers> | null = null
 async function getStorageHelpers(): Promise<StorageHelpers> {
   if (!storageHelpersPromise) {
     storageHelpersPromise = import('@/lib/storage').then((mod) => ({
+      getObjectBuffer: mod.getObjectBuffer,
       getSignedUrl: mod.getSignedUrl,
       toFetchableUrl: mod.toFetchableUrl,
     }))
@@ -316,6 +320,51 @@ async function toFetchableAbsoluteUrl(value: string): Promise<string> {
   return toFetchableUrl(value)
 }
 
+function extractStorageKeyFromStorageSignUrl(input: string): string | null {
+  const parsed = toUrlMaybe(input)
+  if (!parsed || parsed.pathname !== '/api/storage/sign') {
+    return null
+  }
+  const key = parsed.searchParams.get('key')
+  if (!key) return null
+  return decodeRepeatedly(key).replace(/^\/+/, '')
+}
+
+function extractStorageKeyFromFilesUrl(input: string): string | null {
+  const parsed = toUrlMaybe(input)
+  if (!parsed || !parsed.pathname.startsWith('/api/files/')) {
+    return null
+  }
+  return decodeRepeatedly(parsed.pathname.slice('/api/files/'.length)).replace(/^\/+/, '')
+}
+
+function extractDirectReadableStorageKey(input: string): string | null {
+  const storageKey = extractStorageKeyFromStorageSignUrl(input) || extractStorageKeyFromFilesUrl(input)
+  return storageKey && isStorageKey(storageKey) ? storageKey : null
+}
+
+async function tryReadStorageImageAsDataUrl(input: string): Promise<string | null> {
+  const storageKey = extractDirectReadableStorageKey(input)
+  if (!storageKey) return null
+
+  let buffer: Buffer
+  try {
+    const { getObjectBuffer } = await getStorageHelpers()
+    buffer = await getObjectBuffer(storageKey)
+  } catch {
+    throw new OutboundImageNormalizeError({
+      code: 'OUTBOUND_IMAGE_FETCH_EXCEPTION',
+      stage: 'normalize_base64',
+      input,
+      message: `normalizeToBase64ForGeneration storage read exception: ${storageKey}`,
+    })
+  }
+
+  const mimeType = guessContentType(storageKey, null, buffer)
+  await assertDecodableImage(storageKey, mimeType, buffer)
+  return `data:${mimeType};base64,${buffer.toString('base64')}`
+}
+
 function unwrapNextImageInternal(input: string): string {
   let current = input.trim()
   for (let i = 0; i < MAX_NEXT_IMAGE_UNWRAP_DEPTH; i += 1) {
@@ -418,6 +467,11 @@ export async function normalizeToBase64ForGeneration(input: string): Promise<str
   const normalizedUrl = await normalizeToOriginalMediaUrl(input)
   if (isDataUrl(normalizedUrl)) {
     return normalizedUrl
+  }
+
+  const storageDataUrl = await tryReadStorageImageAsDataUrl(normalizedUrl)
+  if (storageDataUrl) {
+    return storageDataUrl
   }
 
   const fetchUrl = await toFetchableAbsoluteUrl(normalizedUrl)

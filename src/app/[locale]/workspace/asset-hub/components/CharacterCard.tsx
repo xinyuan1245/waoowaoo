@@ -229,6 +229,13 @@ export function CharacterCard({ character, onImageClick, onImageEdit, onVoiceDes
         )
     }
 
+    const angleCount = 4
+    const isAngleGrouped = generatedImageCount >= angleCount && generatedImageCount % angleCount === 0
+    const groupCount = isAngleGrouped ? Math.floor(generatedImageCount / angleCount) : 0
+    const selectedGroupIndex = isAngleGrouped && effectiveSelectedIndex !== null && effectiveSelectedIndex !== undefined
+      ? Math.floor(effectiveSelectedIndex / angleCount)
+      : null
+
     // 多图选择模式
     if (hasMultipleImages) {
         return (
@@ -301,37 +308,80 @@ export function CharacterCard({ character, onImageClick, onImageEdit, onVoiceDes
                 )}
 
                 {/* 图片列表 */}
-                <div className="grid grid-cols-3 gap-3">
-                    {imageUrls.map((url, index) => {
-                        if (!isValidUrl(url)) return null
-                        const validUrl = url as string
-                        const isSelected = effectiveSelectedIndex === index
-                        return (
-                            <div key={index} className="relative group/thumb">
-                                <div
-                                    onClick={() => onImageClick?.(validUrl)}
-                                    className={`rounded-lg overflow-hidden border-2 cursor-zoom-in transition-all ${isSelected ? 'border-[var(--glass-stroke-success)] ring-2 ring-[var(--glass-success-ring)]' : 'border-[var(--glass-stroke-base)] hover:border-[var(--glass-stroke-focus)]'}`}
-                                >
-                                    <MediaImageWithLoading
-                                        src={validUrl}
-                                        alt={`${character.name} ${index + 1}`}
-                                        containerClassName="w-full min-h-[96px]"
-                                        className="w-full h-auto object-contain"
-                                    />
-                                    <div className={`absolute bottom-2 left-2 text-xs px-2 py-0.5 rounded ${isSelected ? 'glass-chip glass-chip-success' : 'glass-chip glass-chip-neutral'}`}>
-                                        {tAssets('image.optionNumber', { number: index + 1 })}
+                {isAngleGrouped ? (
+                    <div className="grid grid-cols-3 gap-3">
+                        {Array.from({ length: groupCount }, (_v, groupIdx) => {
+                            const start = groupIdx * angleCount
+                            const urls = imageUrls.slice(start, start + angleCount).filter(u => isValidUrl(u)) as string[]
+                            if (urls.length !== angleCount) return null
+                            const isSelected = selectedGroupIndex === groupIdx
+                            const optionNumber = groupIdx + 1
+                            return (
+                                <div key={groupIdx} className="relative group/thumb">
+                                    <div className={`rounded-lg overflow-hidden border-2 transition-all ${isSelected ? 'border-[var(--glass-stroke-success)] ring-2 ring-[var(--glass-success-ring)]' : 'border-[var(--glass-stroke-base)] hover:border-[var(--glass-stroke-focus)]'}`}>
+                                        <div className="grid grid-cols-2 gap-1 bg-[var(--glass-bg-muted)] p-1">
+                                            {urls.map((u, idx) => (
+                                                <div
+                                                    key={idx}
+                                                    onClick={() => onImageClick?.(u)}
+                                                    className="rounded overflow-hidden bg-[var(--glass-bg-surface)] cursor-zoom-in"
+                                                >
+                                                    <MediaImageWithLoading
+                                                        src={u}
+                                                        alt={`${character.name} ${optionNumber}-${idx + 1}`}
+                                                        containerClassName="w-full min-h-[72px]"
+                                                        className="w-full h-auto object-contain"
+                                                    />
+                                                </div>
+                                            ))}
+                                        </div>
+                                        <div className={`absolute bottom-2 left-2 text-xs px-2 py-0.5 rounded ${isSelected ? 'glass-chip glass-chip-success' : 'glass-chip glass-chip-neutral'}`}>
+                                            {tAssets('image.optionNumber', { number: optionNumber })}
+                                        </div>
                                     </div>
+                                    <button
+                                        onClick={(e) => { e.stopPropagation(); handleSelectImage(isSelected ? null : (start + 1)) }}
+                                        className={`absolute top-2 right-2 glass-btn-base w-7 h-7 rounded-full flex items-center justify-center ${isSelected ? 'glass-btn-tone-success' : 'glass-btn-secondary'}`}
+                                    >
+                                        <AppIcon name="check" className="w-4 h-4" />
+                                    </button>
                                 </div>
-                                <button
-                                    onClick={(e) => { e.stopPropagation(); handleSelectImage(isSelected ? null : index) }}
-                                    className={`absolute top-2 right-2 glass-btn-base w-7 h-7 rounded-full flex items-center justify-center ${isSelected ? 'glass-btn-tone-success' : 'glass-btn-secondary'}`}
-                                >
-                                    <AppIcon name="check" className="w-4 h-4" />
-                                </button>
-                            </div>
-                        )
-                    })}
-                </div>
+                            )
+                        })}
+                    </div>
+                ) : (
+                    <div className="grid grid-cols-3 gap-3">
+                        {imageUrls.map((url, index) => {
+                            if (!isValidUrl(url)) return null
+                            const validUrl = url as string
+                            const isSelected = effectiveSelectedIndex === index
+                            return (
+                                <div key={index} className="relative group/thumb">
+                                    <div
+                                        onClick={() => onImageClick?.(validUrl)}
+                                        className={`rounded-lg overflow-hidden border-2 cursor-zoom-in transition-all ${isSelected ? 'border-[var(--glass-stroke-success)] ring-2 ring-[var(--glass-success-ring)]' : 'border-[var(--glass-stroke-base)] hover:border-[var(--glass-stroke-focus)]'}`}
+                                    >
+                                        <MediaImageWithLoading
+                                            src={validUrl}
+                                            alt={`${character.name} ${index + 1}`}
+                                            containerClassName="w-full min-h-[96px]"
+                                            className="w-full h-auto object-contain"
+                                        />
+                                        <div className={`absolute bottom-2 left-2 text-xs px-2 py-0.5 rounded ${isSelected ? 'glass-chip glass-chip-success' : 'glass-chip glass-chip-neutral'}`}>
+                                            {tAssets('image.optionNumber', { number: index + 1 })}
+                                        </div>
+                                    </div>
+                                    <button
+                                        onClick={(e) => { e.stopPropagation(); handleSelectImage(isSelected ? null : index) }}
+                                        className={`absolute top-2 right-2 glass-btn-base w-7 h-7 rounded-full flex items-center justify-center ${isSelected ? 'glass-btn-tone-success' : 'glass-btn-secondary'}`}
+                                    >
+                                        <AppIcon name="check" className="w-4 h-4" />
+                                    </button>
+                                </div>
+                            )
+                        })}
+                    </div>
+                )}
 
                 {/* 确认按钮 */}
                 {effectiveSelectedIndex !== null && (
@@ -342,7 +392,7 @@ export function CharacterCard({ character, onImageClick, onImageEdit, onVoiceDes
                             ) : (
                                 <AppIcon name="check" className="w-4 h-4" />
                             )}
-                            {tAssets('image.confirmOption', { number: effectiveSelectedIndex + 1 })}
+                            {tAssets('image.confirmOption', { number: (isAngleGrouped ? (Math.floor(effectiveSelectedIndex / angleCount) + 1) : (effectiveSelectedIndex + 1)) })}
                         </button>
                     </div>
                 )}

@@ -1,6 +1,6 @@
 import { type Job } from 'bullmq'
 import { prisma } from '@/lib/prisma'
-import { CHARACTER_ASSET_IMAGE_RATIO, LOCATION_IMAGE_RATIO, PROP_IMAGE_RATIO, addCharacterPromptSuffix, addLocationPromptSuffix, addPropPromptSuffix, getArtStylePrompt } from '@/lib/constants'
+import { CHARACTER_ASSET_IMAGE_RATIO, LOCATION_IMAGE_RATIO, PROP_IMAGE_RATIO, addLocationPromptSuffix, addPropPromptSuffix, getArtStylePrompt } from '@/lib/constants'
 import { type TaskJobData } from '@/lib/task/types'
 import { encodeImageUrls } from '@/lib/contracts/image-urls-contract'
 import { normalizeImageGenerationCount } from '@/lib/image-generation/count'
@@ -17,12 +17,40 @@ import {
   parseJsonStringArray,
 } from './image-task-handler-shared'
 
+type CharacterAngle = 'closeup' | 'front' | 'side' | 'back'
+
+function buildCharacterAnglePrompt(rawDescription: string, angle: CharacterAngle, artStylePrompt: string) {
+  const base = (rawDescription || '').trim()
+  const angleInstruction = (() => {
+    switch (angle) {
+      case 'closeup':
+        return '仅生成角色正面头肩特写，正对镜头，面部清晰，占画面主体。'
+      case 'front':
+        return '仅生成角色正面全身，正对镜头，完整入镜。'
+      case 'side':
+        return '仅生成角色侧面全身（左侧面或右侧面择一），完整入镜。'
+      case 'back':
+        return '仅生成角色背面全身，完整入镜。'
+      default:
+        return ''
+    }
+  })()
+  const layout = '单张图，纯白色背景，无其他元素，无文字，无边框，不要拼图，不要多视图。'
+  const parts = [base, angleInstruction, layout].filter(Boolean)
+  const core = parts.join('，')
+  return artStylePrompt ? `${core}，${artStylePrompt}` : core
+}
+
 interface GlobalCharacterAppearanceRecord {
   id: string
   appearanceIndex: number
   changeReason: string | null
   description: string | null
   descriptions: string | null
+  imageUrl?: string | null
+  imageUrls?: string | null
+  previousImageUrl?: string | null
+  previousImageUrls?: string | null
 }
 
 interface GlobalCharacterRecord {
@@ -90,30 +118,37 @@ export async function handleAssetHubImageTask(job: Job<TaskJobData>) {
     const base = descriptions.length ? descriptions : [appearance.description || '']
     const count = normalizeImageGenerationCount('character', payload.count)
     const imageUrls: string[] = []
+    const angleKeys = (['closeup', 'front', 'side', 'back'] as const)
 
     for (let i = 0; i < count; i++) {
       const raw = base[i] || base[0]
-      const prompt = artStyle ? `${addCharacterPromptSuffix(raw)}，${artStyle}` : addCharacterPromptSuffix(raw)
-      const imageKey = await generateCleanImageToStorage({
-        job,
-        userId,
-        modelId,
-        prompt,
-        targetId: `${appearance.id}-${i}`,
-        keyPrefix: 'global-character',
-        options: {
-          aspectRatio: CHARACTER_ASSET_IMAGE_RATIO,
-        },
-      })
-      imageUrls.push(imageKey)
+      for (let a = 0; a < angleKeys.length; a++) {
+        const angle = angleKeys[a]
+        const prompt = buildCharacterAnglePrompt(raw, angle, artStyle)
+        const key = await generateCleanImageToStorage({
+          job,
+          userId,
+          modelId,
+          prompt,
+          targetId: `${appearance.id}-${i}-${angle}`,
+          keyPrefix: 'global-character',
+          options: {
+            aspectRatio: CHARACTER_ASSET_IMAGE_RATIO,
+          },
+        })
+        imageUrls.push(key)
+      }
     }
 
     await assertTaskActive(job, 'persist_global_character_image')
     await db.globalCharacterAppearance.update({
       where: { id: appearance.id },
       data: {
+        previousImageUrl: (appearance as GlobalCharacterAppearanceRecord).imageUrl ?? null,
+        previousImageUrls: (appearance as GlobalCharacterAppearanceRecord).imageUrls ?? null,
         imageUrls: encodeImageUrls(imageUrls),
-        imageUrl: imageUrls[0] || null,
+        // 默认主图使用“第1套方案的正面全身”（offset=1）
+        imageUrl: imageUrls[1] || imageUrls[0] || null,
         selectedIndex: null,
       },
     })

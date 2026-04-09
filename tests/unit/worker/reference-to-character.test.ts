@@ -1,6 +1,6 @@
 import type { Job } from 'bullmq'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { CHARACTER_IMAGE_BANANA_RATIO } from '@/lib/constants'
+import { CHARACTER_ASSET_IMAGE_RATIO } from '@/lib/constants'
 import { TASK_TYPE, type TaskJobData, type TaskType } from '@/lib/task/types'
 
 const sharpMock = vi.hoisted(() =>
@@ -165,7 +165,7 @@ describe('worker reference-to-character', () => {
     await expect(handleReferenceToCharacterTask(job)).rejects.toThrow('Unsupported task type')
   })
 
-  it('generates fixed front, side, and back views and uses the front view as the side/back anchor for customDescription', async () => {
+  it('uses single-angle prompts and disables reference-image injection when customDescription is provided', async () => {
     const job = buildJob(
       {
         referenceImageUrls: ['https://example.com/ref-a.png', 'https://example.com/ref-b.png'],
@@ -178,32 +178,19 @@ describe('worker reference-to-character', () => {
     const result = await handleReferenceToCharacterTask(job)
 
     expect(result).toEqual(expect.objectContaining({ success: true }))
-    expect(generatorApiMock.generateImage).toHaveBeenCalledTimes(3)
+    expect(generatorApiMock.generateImage).toHaveBeenCalledTimes(12)
     expect(fontsMock.initializeFonts).not.toHaveBeenCalled()
     expect(fontsMock.createLabelSVG).not.toHaveBeenCalled()
 
     const { prompt, options } = readGenerateCall(0)
     expect(prompt).toContain('冷静黑发角色')
-    expect(prompt).toContain('只生成一张角色正面全身图')
-    expect(options.aspectRatio).toBe(CHARACTER_IMAGE_BANANA_RATIO)
+    expect(prompt).toContain('仅生成角色正面头肩特写')
+    expect(prompt).toContain('不要拼图，不要多视图')
+    expect(options.aspectRatio).toBe(CHARACTER_ASSET_IMAGE_RATIO)
     expect(options.referenceImages).toBeUndefined()
-
-    const sideCall = readGenerateCall(1)
-    expect(sideCall.prompt).toContain('只生成一张同一角色的侧面全身图')
-    expect(sideCall.prompt).toContain('AI_EXTRACTED_DESCRIPTION')
-    expect(sideCall.options.referenceImages).toEqual([
-      expect.stringContaining('https://signed.example/cos/reference-key-'),
-    ])
-
-    const backCall = readGenerateCall(2)
-    expect(backCall.prompt).toContain('只生成一张同一角色的背面全身图')
-    expect(backCall.options.referenceImages).toEqual([
-      expect.stringContaining('https://signed.example/cos/reference-key-'),
-      expect.stringContaining('https://signed.example/cos/reference-key-'),
-    ])
   })
 
-  it('generates front, side, and back from references and writes extracted front description in background mode', async () => {
+  it('uses multi-angle prompts in template flow and writes extracted description in background mode', async () => {
     const job = buildJob(
       {
         referenceImageUrls: [' https://example.com/ref-a.png ', 'https://example.com/ref-b.png'],
@@ -218,29 +205,15 @@ describe('worker reference-to-character', () => {
     const result = await handleReferenceToCharacterTask(job)
 
     expect(result).toEqual(expect.objectContaining({ success: true }))
-    expect(generatorApiMock.generateImage).toHaveBeenCalledTimes(3)
+    expect(generatorApiMock.generateImage).toHaveBeenCalledTimes(12)
     expect(fontsMock.initializeFonts).not.toHaveBeenCalled()
     expect(fontsMock.createLabelSVG).not.toHaveBeenCalled()
 
     const { prompt, options } = readGenerateCall(0)
     expect(prompt).toContain('BASE_REFERENCE_PROMPT')
-    expect(prompt).toContain('只生成一张角色正面全身图')
+    expect(prompt).toContain('仅生成角色正面头肩特写')
     expect(options.referenceImages).toEqual(['https://example.com/ref-a.png', 'https://example.com/ref-b.png'])
-    expect(options.aspectRatio).toBe(CHARACTER_IMAGE_BANANA_RATIO)
-
-    const sideCall = readGenerateCall(1)
-    expect(sideCall.options.referenceImages).toEqual([
-      'https://example.com/ref-a.png',
-      'https://example.com/ref-b.png',
-      expect.stringContaining('https://signed.example/cos/reference-key-'),
-    ])
-    const backCall = readGenerateCall(2)
-    expect(backCall.options.referenceImages).toEqual([
-      'https://example.com/ref-a.png',
-      'https://example.com/ref-b.png',
-      expect.stringContaining('https://signed.example/cos/reference-key-'),
-      expect.stringContaining('https://signed.example/cos/reference-key-'),
-    ])
+    expect(options.aspectRatio).toBe(CHARACTER_ASSET_IMAGE_RATIO)
 
     const updateArg = prismaMock.globalCharacterAppearance.update.mock.calls[0]?.[0] as {
       data?: Record<string, unknown>
@@ -250,10 +223,10 @@ describe('worker reference-to-character', () => {
     expect(updateArg?.where).toEqual({ id: 'appearance-1' })
     expect(updateData.description).toBe('AI_EXTRACTED_DESCRIPTION')
     expect(typeof updateData.imageUrls).toBe('string')
-    expect(updateData.imageUrl).toMatch(/^cos\/reference-key-\d+\.jpg$/)
+    expect(updateData.imageUrl).toBe('cos/reference-key-2.jpg')
   })
 
-  it('ignores requested candidate count and always returns the three required character views', async () => {
+  it('uses requested count as plan count when generating reference character angles', async () => {
     const job = buildJob(
       {
         referenceImageUrls: ['https://example.com/ref-a.png'],
@@ -266,9 +239,9 @@ describe('worker reference-to-character', () => {
     const result = await handleReferenceToCharacterTask(job)
 
     expect(result).toEqual(expect.objectContaining({ success: true }))
-    expect(generatorApiMock.generateImage).toHaveBeenCalledTimes(3)
+    expect(generatorApiMock.generateImage).toHaveBeenCalledTimes(20)
     const cosKeys = (result as { cosKeys?: string[] }).cosKeys
-    expect(cosKeys).toHaveLength(3)
+    expect(cosKeys).toHaveLength(20)
     expect(cosKeys?.every((item) => item.startsWith('cos/reference-key-'))).toBe(true)
   })
 
@@ -285,6 +258,6 @@ describe('worker reference-to-character', () => {
     await handleReferenceToCharacterTask(job)
 
     expect(fontsMock.initializeFonts).toHaveBeenCalledTimes(1)
-    expect(fontsMock.createLabelSVG).toHaveBeenCalledTimes(3)
+    expect(fontsMock.createLabelSVG).toHaveBeenCalledTimes(4)
   })
 })

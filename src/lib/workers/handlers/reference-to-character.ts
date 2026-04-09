@@ -8,8 +8,7 @@ import { getProviderConfig } from '@/lib/api-config'
 import { executeAiVisionStep } from '@/lib/ai-runtime'
 import { getUserModelConfig } from '@/lib/config-service'
 import {
-  CHARACTER_IMAGE_BANANA_RATIO,
-  addCharacterPromptSuffix,
+  CHARACTER_ASSET_IMAGE_RATIO,
   getArtStylePrompt,
 } from '@/lib/constants'
 import { encodeImageUrls } from '@/lib/contracts/image-urls-contract'
@@ -25,6 +24,31 @@ import {
   readBoolean,
   readString,
 } from './reference-to-character-helpers'
+type CharacterAngle = 'closeup' | 'front' | 'side' | 'back'
+const ANGLE_KEYS: readonly CharacterAngle[] = ['closeup', 'front', 'side', 'back'] as const
+
+function buildCharacterAnglePrompt(rawDescription: string, angle: CharacterAngle, artStylePrompt: string) {
+  const base = (rawDescription || '').trim()
+  const angleInstruction = (() => {
+    switch (angle) {
+      case 'closeup':
+        return '仅生成角色正面头肩特写，正对镜头，面部清晰，占画面主体。'
+      case 'front':
+        return '仅生成角色正面全身，正对镜头，完整入镜。'
+      case 'side':
+        return '仅生成角色侧面全身（左侧面或右侧面择一），完整入镜。'
+      case 'back':
+        return '仅生成角色背面全身，完整入镜。'
+      default:
+        return ''
+    }
+  })()
+  const layout = '单张图，纯白色背景，无其他元素，无文字，无边框，不要拼图，不要多视图。'
+  const parts = [base, angleInstruction, layout].filter(Boolean)
+  const core = parts.join('，')
+  return artStylePrompt ? `${core}，${artStylePrompt}` : core
+}
+
 const POLL_MAX_ATTEMPTS = 60
 const POLL_INTERVAL_MS = 2000
 async function generateReferenceImage(params: {
@@ -58,7 +82,7 @@ async function generateReferenceImage(params: {
       prompt,
       {
         referenceImages,
-        aspectRatio: CHARACTER_IMAGE_BANANA_RATIO,
+        aspectRatio: CHARACTER_ASSET_IMAGE_RATIO,
       },
     )
 
@@ -199,14 +223,10 @@ export async function handleReferenceToCharacterTask(job: Job<TaskJobData>) {
 
   const artStylePrompt = getArtStylePrompt(artStyle, job.data.locale)
 
-  const basePrompt = customDescription || buildPrompt({
+  const baseDescription = customDescription || buildPrompt({
     promptId: PROMPT_IDS.CHARACTER_REFERENCE_TO_SHEET,
     locale: job.data.locale,
   })
-  let prompt = addCharacterPromptSuffix(basePrompt)
-  if (artStylePrompt) {
-    prompt = `${prompt}，${artStylePrompt}`
-  }
 
   const useReferenceImages = !customDescription
   const { apiKey: falApiKey } = await getProviderConfig(job.data.userId, 'fal')
@@ -215,23 +235,30 @@ export async function handleReferenceToCharacterTask(job: Job<TaskJobData>) {
 
   await reportTaskProgress(job, 35, {
     stage: 'reference_to_character_generate',
-    stageLabel: '生成角色三视图',
+    stageLabel: '生成角色多角度图',
     displayMode: 'detail',
   })
 
-  const imageResults = await Promise.all(Array.from({ length: count }, (_value, index) => index).map(async (index) =>
-    await generateReferenceImage({
-      job,
-      imageIndex: index,
-      userId: job.data.userId,
-      imageModel,
-      prompt,
-      referenceImages: useReferenceImages ? allReferenceImages : undefined,
-      falApiKey,
-      keyPrefix,
-      ...(isProject ? { labelText: characterName } : {}),
-    }),
-  ))
+  const imageResults: (string | null)[] = []
+  for (let i = 0; i < count; i++) {
+    for (let a = 0; a < ANGLE_KEYS.length; a++) {
+      const angle = ANGLE_KEYS[a]
+      const prompt = buildCharacterAnglePrompt(baseDescription, angle, artStylePrompt)
+      const globalIndex = i * ANGLE_KEYS.length + a
+      const result = await generateReferenceImage({
+        job,
+        imageIndex: globalIndex,
+        userId: job.data.userId,
+        imageModel,
+        prompt,
+        referenceImages: useReferenceImages ? allReferenceImages : undefined,
+        falApiKey,
+        keyPrefix,
+        ...(isProject ? { labelText: characterName } : {}),
+      })
+      imageResults.push(result)
+    }
+  }
 
   let description: string | null = null
   if (analysisModel) {
@@ -255,14 +282,18 @@ export async function handleReferenceToCharacterTask(job: Job<TaskJobData>) {
     throw new Error('图片生成失败')
   }
 
+  // 默认主图使用"第1套方案的正面全身"（offset=1）
+  const mainCosKeyForDb = successfulCosKeys[1] || successfulCosKeys[0]
+
   await assertTaskActive(job, 'reference_to_character_persist')
   if (isBackgroundJob && appearanceId) {
     if (isAssetHub) {
       await prisma.globalCharacterAppearance.update({
         where: { id: appearanceId },
         data: {
-          imageUrl: successfulCosKeys[0],
+          imageUrl: mainCosKeyForDb,
           imageUrls: encodeImageUrls(successfulCosKeys),
+          selectedIndex: null,
           description: description || undefined,
         },
       })
@@ -270,8 +301,9 @@ export async function handleReferenceToCharacterTask(job: Job<TaskJobData>) {
       await prisma.characterAppearance.update({
         where: { id: appearanceId },
         data: {
-          imageUrl: successfulCosKeys[0],
+          imageUrl: mainCosKeyForDb,
           imageUrls: encodeImageUrls(successfulCosKeys),
+          selectedIndex: null,
           description: description || undefined,
         },
       })
@@ -284,8 +316,7 @@ export async function handleReferenceToCharacterTask(job: Job<TaskJobData>) {
     return { success: true }
   }
 
-  const mainCosKey = successfulCosKeys[0]
-  const mainSignedUrl = getSignedUrl(mainCosKey, 7 * 24 * 3600)
+  const mainSignedUrl = getSignedUrl(mainCosKeyForDb, 7 * 24 * 3600)
 
   await reportTaskProgress(job, 96, {
     stage: 'reference_to_character_done',
@@ -296,7 +327,7 @@ export async function handleReferenceToCharacterTask(job: Job<TaskJobData>) {
   return {
     success: true,
     imageUrl: mainSignedUrl,
-    cosKey: mainCosKey,
+    cosKey: mainCosKeyForDb,
     cosKeys: successfulCosKeys,
     description,
   }

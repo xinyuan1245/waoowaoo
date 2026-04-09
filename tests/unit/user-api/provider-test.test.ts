@@ -13,6 +13,9 @@ const fetchMock = vi.hoisted(() =>
     if (url.includes('api.siliconflow.cn/v1/user/info')) {
       return new Response(JSON.stringify({ data: { balance: '12.3000' } }), { status: 200 })
     }
+    if (url.includes('happyhorse.app/api/status')) {
+      return new Response(JSON.stringify({ code: 200, data: { status: 'PENDING' } }), { status: 200 })
+    }
     return new Response('not-found', { status: 404 })
   }),
 )
@@ -215,5 +218,26 @@ describe('provider test connection', () => {
       status: 'fail',
       message: 'Network error: socket hang up',
     })
+  })
+
+  it('passes happyhorse probe when status endpoint is reachable', async () => {
+    const result = await testProviderConnection({
+      apiType: 'happyhorse',
+      apiKey: 'hh-key',
+    })
+
+    expect(result.success).toBe(true)
+    expect(result.steps).toEqual([
+      {
+        name: 'models',
+        status: 'pass',
+        message: 'HappyHorse endpoint reachable',
+      },
+      {
+        name: 'credits',
+        status: 'skip',
+        message: 'Not supported by HappyHorse probe API',
+      },
+    ])
   })
 })

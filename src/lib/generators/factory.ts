@@ -17,7 +17,7 @@ import {
     OpenAICompatibleImageGenerator,
 } from './image'
 import { GoogleVeoVideoGenerator } from './video/google'
-import { OpenAICompatibleVideoGenerator } from './video'
+import { HappyHorseVideoGenerator, OpenAICompatibleVideoGenerator } from './video'
 import { MinimaxVideoGenerator } from './minimax'
 import { ViduVideoGenerator } from './vidu'
 import { getProviderKey } from '@/lib/api-config'
@@ -90,6 +90,8 @@ export function createVideoGenerator(provider: string): VideoGenerator {
             return new MinimaxVideoGenerator()
         case 'vidu':
             return new ViduVideoGenerator()
+        case 'happyhorse':
+            return new HappyHorseVideoGenerator(provider)
         case 'openai-compatible':
             return new OpenAICompatibleVideoGenerator(provider)
         case 'bailian':

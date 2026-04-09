@@ -68,4 +68,18 @@ describe('normalizeAnyError provider-specific mapping', () => {
     expect(normalized.code).toBe('MODEL_NOT_CONFIGURED')
     expect(normalized.retryable).toBe(false)
   })
+
+  it('maps outbound image fetch failures to NETWORK_ERROR instead of billing errors', () => {
+    const normalized = normalizeAnyError(
+      new Error('normalizeToBase64ForGeneration fetch failed (402): http://127.0.0.1:3000/api/storage/sign?key=images%2Fpanel-candidate.jpg&expires=3600'),
+    )
+    expect(normalized.code).toBe('NETWORK_ERROR')
+    expect(normalized.retryable).toBe(true)
+  })
+
+  it('maps Chinese login messages to UNAUTHORIZED', () => {
+    const normalized = normalizeAnyError(new Error('请先登录后再试。'))
+    expect(normalized.code).toBe('UNAUTHORIZED')
+    expect(normalized.retryable).toBe(false)
+  })
 })

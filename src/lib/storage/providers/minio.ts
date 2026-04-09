@@ -1,5 +1,5 @@
 import type { DeleteObjectsResult, SignedUrlParams, StorageProvider, UploadObjectParams, UploadObjectResult } from '@/lib/storage/types'
-import { requireEnv, streamToBuffer, toFetchableUrl } from '@/lib/storage/utils'
+import { extractAppStorageKey, requireEnv, streamToBuffer, toFetchableUrl } from '@/lib/storage/utils'
 
 const DEFAULT_MINIO_REGION = 'us-east-1'
 
@@ -138,12 +138,15 @@ export class MinioStorageProvider implements StorageProvider {
   extractStorageKey(input: string | null | undefined): string | null {
     if (!input) return null
 
+    const appStorageKey = extractAppStorageKey(input)
+    if (appStorageKey) return appStorageKey
+
     if (!input.startsWith('http') && !input.startsWith('/')) {
       return input
     }
 
     try {
-      const parsed = new URL(input)
+      const parsed = new URL(input, 'http://localhost')
       let pathname = parsed.pathname.replace(/^\/+/, '')
       const bucketPrefix = `${this.bucket}/`
       if (pathname.startsWith(bucketPrefix)) {

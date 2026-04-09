@@ -50,4 +50,16 @@ describe('async poll externalId contract', () => {
     expect(parsed.type).toBe('IMAGE')
     expect(parsed.requestId).toBe('task_456')
   })
+
+  it('parses and formats HAPPYHORSE externalId with provider token', () => {
+    const providerToken = Buffer.from('happyhorse', 'utf8').toString('base64url')
+    const externalId = formatExternalId('HAPPYHORSE', 'VIDEO', 'task_789', undefined, providerToken)
+    expect(externalId).toBe(`HAPPYHORSE:VIDEO:${providerToken}:task_789`)
+
+    const parsed = parseExternalId(externalId)
+    expect(parsed.provider).toBe('HAPPYHORSE')
+    expect(parsed.type).toBe('VIDEO')
+    expect(parsed.providerToken).toBe(providerToken)
+    expect(parsed.requestId).toBe('task_789')
+  })
 })

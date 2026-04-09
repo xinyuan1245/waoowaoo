@@ -275,6 +275,7 @@ export const PRESET_MODELS: PresetModel[] = [
     { modelId: 'fal-ai/kling-video/v2.5-turbo/pro/image-to-video', name: 'Kling 2.5 Turbo Pro', type: 'video', provider: 'fal' },
     { modelId: 'fal-ai/kling-video/v3/standard/image-to-video', name: 'Kling 3 Standard', type: 'video', provider: 'fal' },
     { modelId: 'fal-ai/kling-video/v3/pro/image-to-video', name: 'Kling 3 Pro', type: 'video', provider: 'fal' },
+    { modelId: 'happyhorse-1.0/video', name: 'HappyHorse 1.0 Video', type: 'video', provider: 'happyhorse' },
     // APIMart OpenAI-compatible 视频模型
     makeApimartVideoModel('sora-2', 'Sora 2'),
     makeApimartVideoModel('sora-2-pro', 'Sora 2 Pro'),
@@ -332,6 +333,7 @@ export const PRESET_PROVIDERS: Omit<Provider, 'apiKey' | 'hasApiKey'>[] = [
     { id: 'minimax', name: 'MiniMax Hailuo', baseUrl: 'https://api.minimaxi.com/v1' },
     { id: 'vidu', name: 'Vidu' },
     { id: 'fal', name: 'FAL' },
+    { id: 'happyhorse', name: 'HappyHorse', baseUrl: 'https://happyhorse.app' },
 ]
 
 const ZH_PROVIDER_NAME_MAP: Record<string, string> = {
@@ -343,6 +345,7 @@ const ZH_PROVIDER_NAME_MAP: Record<string, string> = {
     moonshot: '月之暗面 Moonshot',
     apimart: 'APIMart 模型网关',
     siliconflow: '硅基流动',
+    happyhorse: 'HappyHorse',
 }
 
 function isZhLocale(locale?: string): boolean {

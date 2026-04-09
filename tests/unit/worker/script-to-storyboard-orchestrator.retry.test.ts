@@ -2,7 +2,7 @@ import { describe, expect, it, vi } from 'vitest'
 import { runScriptToStoryboardOrchestrator } from '@/lib/novel-promotion/script-to-storyboard/orchestrator'
 
 describe('script-to-storyboard orchestrator retry', () => {
-  it('runs phase1 merge and feeds merged panels into downstream phases', async () => {
+  it('feeds phase1 panels directly into downstream phases', async () => {
     const promptsByAction = new Map<string, string>()
     const runStep = vi.fn(async (_meta, prompt: string, action: string) => {
       promptsByAction.set(action, prompt)
@@ -15,31 +15,29 @@ describe('script-to-storyboard orchestrator retry', () => {
           reasoning: '',
         }
       }
-      if (action === 'storyboard_phase1_merge') {
+      if (action === 'storyboard_phase2_cinematography') {
         return {
           text: JSON.stringify([
-            {
-              panel_number: 1,
-              description: '张三站在办公室门口说话',
-              location: '场景A',
-              source_text: '张三走进办公室 张三说话',
-              characters: [{ name: '角色A' }],
-              video_prompt: '张三走进办公室后停下说话，镜头从中景缓推到近景',
-            },
+            { panel_number: 1, composition: '中景构图' },
+            { panel_number: 2, composition: '近景特写' },
           ]),
           reasoning: '',
         }
       }
-      if (action === 'storyboard_phase2_cinematography') {
-        return { text: JSON.stringify([{ panel_number: 1, composition: '中景构图' }]), reasoning: '' }
-      }
       if (action === 'storyboard_phase2_acting') {
-        return { text: JSON.stringify([{ panel_number: 1, characters: [] }]), reasoning: '' }
+        return {
+          text: JSON.stringify([
+            { panel_number: 1, characters: [] },
+            { panel_number: 2, characters: [] },
+          ]),
+          reasoning: '',
+        }
       }
       if (action === 'storyboard_phase3_detail') {
         return {
           text: JSON.stringify([
-            { panel_number: 1, description: '张三站在办公室门口说话', location: '场景A', source_text: '张三走进办公室 张三说话', characters: [{ name: '角色A' }] },
+            { panel_number: 1, description: '张三走进办公室', location: '场景A', source_text: '张三走进办公室', characters: [{ name: '角色A' }] },
+            { panel_number: 2, description: '张三在办公室说话特写', location: '场景A', source_text: '张三说话', characters: [{ name: '角色A' }] },
           ]),
           reasoning: '',
         }
@@ -63,7 +61,6 @@ describe('script-to-storyboard orchestrator retry', () => {
       },
       promptTemplates: {
         phase1PlanTemplate: '{clip_content} {clip_json} {characters_lib_name} {locations_lib_name} {characters_introduction} {characters_appearance_list} {characters_full_description}',
-        phase1MergeTemplate: 'merge {panels_json} {clip_json} {clip_content} {characters_full_description} {locations_description} {props_description}',
         phase2CinematographyTemplate: '{panels_json} {panel_count} {locations_description} {characters_info}',
         phase2ActingTemplate: '{panels_json} {panel_count} {characters_info}',
         phase3DetailTemplate: '{panels_json} {characters_age_gender} {locations_description}',
@@ -71,16 +68,25 @@ describe('script-to-storyboard orchestrator retry', () => {
       runStep,
     })
 
-    expect(runStep).toHaveBeenCalledWith(
-      expect.objectContaining({ stepId: 'clip_clip-1_phase1_merge' }),
+    expect(runStep).not.toHaveBeenCalledWith(
+      expect.anything(),
       expect.any(String),
       'storyboard_phase1_merge',
-      2800,
+      expect.any(Number),
     )
-    expect(promptsByAction.get('storyboard_phase2_cinematography')).toContain('张三站在办公室门口说话')
-    expect(promptsByAction.get('storyboard_phase2_cinematography')).not.toContain('张三在办公室说话特写')
-    expect(result.summary.totalPanelCount).toBe(1)
-    expect(result.summary.totalStepCount).toBe(7)
+    expect(runStep).toHaveBeenCalledWith(
+      expect.objectContaining({
+        stepId: 'clip_clip-1_phase2_cinematography',
+        dependsOn: ['clip_clip-1_phase1'],
+      }),
+      expect.any(String),
+      'storyboard_phase2_cinematography',
+      2400,
+    )
+    expect(promptsByAction.get('storyboard_phase2_cinematography')).toContain('张三走进办公室')
+    expect(promptsByAction.get('storyboard_phase2_cinematography')).toContain('张三在办公室说话特写')
+    expect(result.summary.totalPanelCount).toBe(2)
+    expect(result.summary.totalStepCount).toBe(6)
   })
 
   it('retries retryable step failures up to 3 attempts', async () => {

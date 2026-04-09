@@ -23,6 +23,7 @@ type PresetProviderType = 'ark' | 'google' | 'openrouter' | 'minimax' | 'fal' | 
   | 'moonshot'
   | 'apimart'
   | 'siliconflow'
+  | 'happyhorse'
 type CompatibleProviderType = 'openai-compatible' | 'gemini-compatible'
 
 type TestProviderPayload = {
@@ -843,6 +844,91 @@ async function testAPIMartProvider(apiKey: string, llmModel?: string): Promise<T
   return testCompatibleProvider('https://api.apimart.ai/v1', apiKey, llmModel || 'gpt-5-mini')
 }
 
+async function testHappyHorseProvider(apiKey: string, baseUrl?: string): Promise<TestProviderResult> {
+  const endpoint = `${(baseUrl || 'https://happyhorse.app').trim().replace(/\/+$/, '')}/api/status?task_id=probe`
+  const steps: TestStep[] = []
+  try {
+    const response = await fetch(endpoint, {
+      method: 'GET',
+      headers: {
+        Authorization: `Bearer ${apiKey}`,
+      },
+      signal: AbortSignal.timeout(15_000),
+    })
+    const detail = (await response.text().catch(() => '')).slice(0, 500)
+
+    if (response.status === 401 || response.status === 403) {
+      steps.push({
+        name: 'models',
+        status: 'fail',
+        message: `Authentication failed (${response.status})`,
+        detail,
+      })
+      steps.push({
+        name: 'credits',
+        status: 'skip',
+        message: 'Not supported by HappyHorse probe API',
+      })
+      return { success: false, steps }
+    }
+
+    if (response.status === 429) {
+      steps.push({
+        name: 'models',
+        status: 'fail',
+        message: `Rate limited (${response.status})`,
+        detail,
+      })
+      steps.push({
+        name: 'credits',
+        status: 'skip',
+        message: 'Not supported by HappyHorse probe API',
+      })
+      return { success: false, steps }
+    }
+
+    // HappyHorse status API requires a real task_id; probe accepts 2xx/4xx as reachable.
+    if (response.status >= 200 && response.status < 500) {
+      steps.push({
+        name: 'models',
+        status: 'pass',
+        message: 'HappyHorse endpoint reachable',
+      })
+      steps.push({
+        name: 'credits',
+        status: 'skip',
+        message: 'Not supported by HappyHorse probe API',
+      })
+      return { success: true, steps }
+    }
+
+    steps.push({
+      name: 'models',
+      status: 'fail',
+      message: `Provider error (${response.status})`,
+      detail,
+    })
+    steps.push({
+      name: 'credits',
+      status: 'skip',
+      message: 'Not supported by HappyHorse probe API',
+    })
+    return { success: false, steps }
+  } catch (error) {
+    steps.push({
+      name: 'models',
+      status: 'fail',
+      message: toNetworkErrorMessage(error),
+    })
+    steps.push({
+      name: 'credits',
+      status: 'skip',
+      message: 'Not supported by HappyHorse probe API',
+    })
+    return { success: false, steps }
+  }
+}
+
 // ---------------------------------------------------------------------------
 // Public API
 // ---------------------------------------------------------------------------
@@ -893,6 +979,8 @@ export async function testProviderConnection(payload: TestProviderPayload): Prom
       return testAPIMartProvider(apiKey, llmModel)
     case 'siliconflow':
       return testSiliconFlowProvider(apiKey)
+    case 'happyhorse':
+      return testHappyHorseProvider(apiKey, baseUrl)
     default:
       return {
         success: false,

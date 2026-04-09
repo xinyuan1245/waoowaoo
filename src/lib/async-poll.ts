@@ -19,6 +19,7 @@ import { logInfo as _ulogInfo, logError as _ulogError } from '@/lib/logging/core
 import { queryFalStatus } from './async-submit'
 import { queryGeminiBatchStatus, querySeedanceVideoStatus, queryGoogleVideoStatus } from './async-task-utils'
 import { getProviderConfig, getUserModels } from './api-config'
+import { queryHappyHorseVideoStatus } from './providers/happyhorse/video'
 import { buildRenderedTemplateRequest, buildTemplateVariables, normalizeResponseJson, readJsonPath } from './openai-compat-template-runtime'
 import { composeModelKey } from './model-config-contract'
 
@@ -78,7 +79,7 @@ function readTemplateOutputUrl(payload: unknown, outputUrlPath?: string, outputU
  * 解析 externalId 获取 provider、type 和请求信息
  */
 export function parseExternalId(externalId: string): {
-    provider: 'FAL' | 'ARK' | 'GEMINI' | 'GOOGLE' | 'MINIMAX' | 'VIDU' | 'OPENAI' | 'OCOMPAT' | 'BAILIAN' | 'SILICONFLOW' | 'UNKNOWN'
+    provider: 'FAL' | 'ARK' | 'GEMINI' | 'GOOGLE' | 'MINIMAX' | 'VIDU' | 'OPENAI' | 'OCOMPAT' | 'BAILIAN' | 'SILICONFLOW' | 'HAPPYHORSE' | 'UNKNOWN'
     type: 'VIDEO' | 'IMAGE' | 'BATCH' | 'UNKNOWN'
     endpoint?: string
     requestId: string
@@ -240,9 +241,25 @@ export function parseExternalId(externalId: string): {
         }
     }
 
+    if (externalId.startsWith('HAPPYHORSE:')) {
+        const parts = externalId.split(':')
+        const type = parts[1]
+        const providerToken = parts[2]
+        const requestId = parts.slice(3).join(':')
+        if (type !== 'VIDEO' || !providerToken || !requestId) {
+            throw new Error(`无效 HAPPYHORSE externalId: "${externalId}"，应为 HAPPYHORSE:VIDEO:providerToken:taskId`)
+        }
+        return {
+            provider: 'HAPPYHORSE',
+            type: 'VIDEO',
+            providerToken,
+            requestId,
+        }
+    }
+
     throw new Error(
         `无法识别的 externalId 格式: "${externalId}". ` +
-        `支持的格式: FAL:TYPE:endpoint:requestId, ARK:TYPE:requestId, GEMINI:BATCH:batchName, GOOGLE:VIDEO:operationName, MINIMAX:TYPE:taskId, VIDU:TYPE:taskId, OPENAI:VIDEO:providerToken:videoId, OCOMPAT:TYPE:providerToken:modelKeyToken:taskId, BAILIAN:TYPE:requestId, SILICONFLOW:TYPE:requestId`
+        `支持的格式: FAL:TYPE:endpoint:requestId, ARK:TYPE:requestId, GEMINI:BATCH:batchName, GOOGLE:VIDEO:operationName, MINIMAX:TYPE:taskId, VIDU:TYPE:taskId, OPENAI:VIDEO:providerToken:videoId, OCOMPAT:TYPE:providerToken:modelKeyToken:taskId, BAILIAN:TYPE:requestId, SILICONFLOW:TYPE:requestId, HAPPYHORSE:VIDEO:providerToken:taskId`
     )
 }
 
@@ -282,9 +299,21 @@ export async function pollAsyncTask(
             return await pollBailianTask(parsed.requestId, userId)
         case 'SILICONFLOW':
             return await pollSiliconFlowTask(parsed.requestId)
+        case 'HAPPYHORSE':
+            return await pollHappyHorseTask(parsed.requestId, userId, parsed.providerToken)
         default:
             // 🔥 移除 fallback：未知 provider 直接抛出错误
             throw new Error(`未知的 Provider: ${parsed.provider}`)
+    }
+}
+
+function decodeHappyHorseProviderId(token: string): string {
+    try {
+        const decoded = Buffer.from(token, 'base64url').toString('utf8').trim()
+        if (!decoded) throw new Error('empty')
+        return decoded
+    } catch {
+        throw new Error('HAPPYHORSE_PROVIDER_TOKEN_INVALID')
     }
 }
 
@@ -893,6 +922,50 @@ async function pollSiliconFlowTask(requestId: string): Promise<PollResult> {
     }
 }
 
+async function pollHappyHorseTask(requestId: string, userId: string, providerToken?: string): Promise<PollResult> {
+    const providerId = decodeHappyHorseProviderId(providerToken || '')
+    try {
+        const { apiKey, baseUrl } = await getProviderConfig(userId, providerId)
+        const result = await queryHappyHorseVideoStatus({
+            apiKey,
+            baseUrl,
+            taskId: requestId,
+        })
+
+        if (result.completed) {
+            if (!result.resultUrl) {
+                return {
+                    status: 'failed',
+                    error: 'HappyHorse: 任务完成但未返回视频URL',
+                }
+            }
+            return {
+                status: 'completed',
+                resultUrl: result.resultUrl,
+                videoUrl: result.resultUrl,
+            }
+        }
+
+        if (result.failed) {
+            return {
+                status: 'failed',
+                error: result.error || 'HappyHorse: 任务失败',
+            }
+        }
+
+        return {
+            status: 'pending',
+        }
+    } catch (error: unknown) {
+        const errorMessage = getErrorMessage(error)
+        _ulogError(`[HappyHorse Query] task_id=${requestId} 异常:`, error)
+        return {
+            status: 'failed',
+            error: `HappyHorse: ${errorMessage}`,
+        }
+    }
+}
+
 /**
  * 查询 Vidu 任务状态
  */
@@ -984,7 +1057,7 @@ async function queryViduTaskStatus(
  * 创建标准格式的 externalId
  */
 export function formatExternalId(
-    provider: 'FAL' | 'ARK' | 'GEMINI' | 'GOOGLE' | 'MINIMAX' | 'VIDU' | 'OPENAI' | 'OCOMPAT' | 'BAILIAN' | 'SILICONFLOW',
+    provider: 'FAL' | 'ARK' | 'GEMINI' | 'GOOGLE' | 'MINIMAX' | 'VIDU' | 'OPENAI' | 'OCOMPAT' | 'BAILIAN' | 'SILICONFLOW' | 'HAPPYHORSE',
     type: 'VIDEO' | 'IMAGE' | 'BATCH',
     requestId: string,
     endpoint?: string,
@@ -1011,6 +1084,12 @@ export function formatExternalId(
             throw new Error('OCOMPAT externalId requires modelKeyToken')
         }
         return `OCOMPAT:${type}:${providerToken}:${modelKeyToken}:${requestId}`
+    }
+    if (provider === 'HAPPYHORSE') {
+        if (!providerToken) {
+            throw new Error('HAPPYHORSE externalId requires providerToken')
+        }
+        return `HAPPYHORSE:${type}:${providerToken}:${requestId}`
     }
     return `${provider}:${type}:${requestId}`
 }

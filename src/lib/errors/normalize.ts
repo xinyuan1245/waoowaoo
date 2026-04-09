@@ -129,6 +129,14 @@ function isVideoApiFormatUnsupportedMessage(message: string): boolean {
   return parsedStatus === 404 || parsedStatus === 405 || parsedStatus === 415
 }
 
+function isOutboundImageNormalizeMessage(message: string): boolean {
+  return containsAny(message, [
+    'outbound_image_',
+    'normalizetobase64forgeneration',
+    'outbound reference',
+  ])
+}
+
 function buildNormalizedError(
   code: UnifiedErrorCode,
   message?: string,
@@ -181,7 +189,12 @@ function inferCodeFromMessage(message: string): UnifiedErrorCode | null {
   if (isEmptyResponseMessage(message)) return 'EMPTY_RESPONSE'
   if (isVideoApiFormatUnsupportedMessage(message)) return 'VIDEO_API_FORMAT_UNSUPPORTED'
   if (containsAny(message, ['task cancelled', 'canceled by user', 'cancelled by user', '任务已取消'])) return 'CONFLICT'
-  if (containsAny(message, ['unauthorized', 'not authenticated', 'need login', '401'])) return 'UNAUTHORIZED'
+  if (containsAny(message, ['unauthorized', 'not authenticated', 'need login', '401', '请先登录', '未登录'])) return 'UNAUTHORIZED'
+  if (isOutboundImageNormalizeMessage(message)) {
+    if (containsAny(message, ['not an image', 'cannot be decoded'])) return 'INVALID_PARAMS'
+    if (containsAny(message, ['not found', '404'])) return 'NOT_FOUND'
+    return 'NETWORK_ERROR'
+  }
   // AccountOverdueError（ARK 欠费 403）必须在 FORBIDDEN 之前检查
   if (containsAny(message, ['accountoverdueerror', 'overdue balance', 'overdue', 'account has an overdue'])) return 'INSUFFICIENT_BALANCE'
   if (containsAny(message, ['forbidden', 'permission denied', '403'])) return 'FORBIDDEN'

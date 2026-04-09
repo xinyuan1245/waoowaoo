@@ -33,6 +33,44 @@ export function normalizeKey(raw: string): string {
   return raw.replace(/^\/+/, '')
 }
 
+function decodeRepeatedly(raw: string): string {
+  let value = raw
+  for (let i = 0; i < 6; i += 1) {
+    try {
+      const decoded = decodeURIComponent(value)
+      if (decoded === value) break
+      value = decoded
+    } catch {
+      break
+    }
+  }
+  return value
+}
+
+export function extractAppStorageKey(input: string | null | undefined): string | null {
+  if (!input) return null
+
+  try {
+    const parsed = isHttpUrl(input) || input.startsWith('/')
+      ? new URL(input, 'http://localhost')
+      : null
+    if (!parsed) return null
+
+    if (parsed.pathname === '/api/storage/sign') {
+      const key = parsed.searchParams.get('key')
+      return key ? normalizeKey(decodeRepeatedly(key)) : null
+    }
+
+    if (parsed.pathname.startsWith('/api/files/')) {
+      return normalizeKey(decodeRepeatedly(parsed.pathname.slice('/api/files/'.length)))
+    }
+  } catch {
+    return null
+  }
+
+  return null
+}
+
 export async function withRetry<T>(
   action: () => Promise<T>,
   maxRetries: number,

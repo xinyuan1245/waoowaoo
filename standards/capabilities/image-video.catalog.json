@@ -1115,6 +1115,39 @@
   },
   {
     "modelType": "video",
+    "provider": "happyhorse",
+    "modelId": "happyhorse-1.0/video",
+    "capabilities": {
+      "video": {
+        "generationModeOptions": [
+          "normal"
+        ],
+        "generateAudioOptions": [
+          false,
+          true
+        ],
+        "durationOptions": [
+          3,
+          4,
+          5,
+          6,
+          7,
+          8,
+          9,
+          10,
+          11,
+          12,
+          13,
+          14,
+          15
+        ],
+        "firstlastframe": false,
+        "supportGenerateAudio": true
+      }
+    }
+  },
+  {
+    "modelType": "video",
     "provider": "vidu",
     "modelId": "vidu2.0",
     "capabilities": {

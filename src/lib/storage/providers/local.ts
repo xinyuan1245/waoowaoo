@@ -1,7 +1,7 @@
 import fs from 'node:fs/promises'
 import path from 'node:path'
 import type { DeleteObjectsResult, SignedUrlParams, StorageProvider, UploadObjectParams, UploadObjectResult } from '@/lib/storage/types'
-import { normalizeKey, toFetchableUrl } from '@/lib/storage/utils'
+import { extractAppStorageKey, normalizeKey, toFetchableUrl } from '@/lib/storage/utils'
 
 const UPLOAD_DIR = process.env.UPLOAD_DIR || './data/uploads'
 
@@ -59,15 +59,16 @@ export class LocalStorageProvider implements StorageProvider {
 
   extractStorageKey(input: string | null | undefined): string | null {
     if (!input) return null
-    if (input.startsWith('/api/files/')) {
-      return normalizeKey(decodeURIComponent(input.replace('/api/files/', '')))
-    }
+
+    const appStorageKey = extractAppStorageKey(input)
+    if (appStorageKey) return appStorageKey
+
     if (!input.startsWith('http') && !input.startsWith('/')) {
       return normalizeKey(input)
     }
 
     try {
-      const parsed = new URL(input)
+      const parsed = new URL(input, 'http://localhost')
       return normalizeKey(parsed.pathname)
     } catch {
       return null

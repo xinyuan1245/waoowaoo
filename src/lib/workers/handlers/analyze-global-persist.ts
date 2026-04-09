@@ -167,7 +167,9 @@ export async function persistAnalyzeGlobalChunk(params: {
         ? (loc.descriptions as unknown[])
         : (readText(loc.description) ? [readText(loc.description)] : [])
       const descriptions = descriptionsRaw.map((item) => readText(item)).filter(Boolean)
-      const cleanDescriptions = descriptions.map((item) => removeLocationPromptSuffix(item))
+      const cleanDescriptions = descriptions
+        .map((item) => removeLocationPromptSuffix(item))
+        .slice(0, 1)
       const availableSlots = normalizeLocationAvailableSlots(loc.available_slots)
 
       const created = await prisma.novelPromotionLocation.create({

@@ -44,6 +44,36 @@ function getErrorMessage(error: unknown): string {
     return '查询异常'
 }
 
+function readFirstUrlFromValue(value: unknown): string | null {
+    if (typeof value === 'string' && value.trim()) return value.trim()
+    if (!value || typeof value !== 'object') return null
+
+    if (Array.isArray(value)) {
+        for (const item of value) {
+            const url = readFirstUrlFromValue(item)
+            if (url) return url
+        }
+        return null
+    }
+
+    const record = value as Record<string, unknown>
+    const directKeys = ['url', 'image_url', 'video_url', 'uri']
+    for (const key of directKeys) {
+        const url = readFirstUrlFromValue(record[key])
+        if (url) return url
+    }
+    return null
+}
+
+function readTemplateOutputUrl(payload: unknown, outputUrlPath?: string, outputUrlsPath?: string): string | null {
+    const outputUrl = readJsonPath(payload, outputUrlPath)
+    const directUrl = readFirstUrlFromValue(outputUrl)
+    if (directUrl) return directUrl
+
+    const outputUrls = readJsonPath(payload, outputUrlsPath)
+    return readFirstUrlFromValue(outputUrls)
+}
+
 /**
  * 解析 externalId 获取 provider、type 和请求信息
  */
@@ -366,14 +396,18 @@ async function pollOCompatTask(
     const doneStates = (template.polling?.doneStates || []).map((item) => item.toLowerCase())
     const failStates = (template.polling?.failStates || []).map((item) => item.toLowerCase())
     if (doneStates.includes(status)) {
-        const outputUrl = readJsonPath(payload, template.response.outputUrlPath)
-        if (typeof outputUrl === 'string' && outputUrl.trim()) {
+        const outputUrl = readTemplateOutputUrl(
+            payload,
+            template.response.outputUrlPath,
+            template.response.outputUrlsPath,
+        )
+        if (outputUrl) {
             return {
                 status: 'completed',
-                resultUrl: outputUrl.trim(),
+                resultUrl: outputUrl,
                 ...(type === 'VIDEO'
-                    ? { videoUrl: outputUrl.trim() }
-                    : { imageUrl: outputUrl.trim() }),
+                    ? { videoUrl: outputUrl }
+                    : { imageUrl: outputUrl }),
             }
         }
         if (template.content) {

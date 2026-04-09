@@ -95,6 +95,9 @@ export async function generateImage(
     let gatewayRoute = OFFICIAL_ONLY_PROVIDER_KEYS.has(providerKey)
         ? 'official'
         : (providerConfig.gatewayRoute || defaultGatewayRoute)
+    if (selection.compatMediaTemplate && !OFFICIAL_ONLY_PROVIDER_KEYS.has(providerKey)) {
+        gatewayRoute = 'openai-compat'
+    }
     if (providerKey === 'gemini-compatible') {
         // DEPRECATED: historical rows persisted gemini-compatible as openai-compat by default.
         // Runtime now resolves route by apiMode to avoid requiring data migration SQL.
@@ -222,9 +225,12 @@ export async function generateVideo(
     }
     const providerConfig = await getProviderConfig(userId, selection.provider)
     const defaultGatewayRoute = resolveModelGatewayRoute(selection.provider)
-    const gatewayRoute = OFFICIAL_ONLY_PROVIDER_KEYS.has(providerKey)
+    let gatewayRoute = OFFICIAL_ONLY_PROVIDER_KEYS.has(providerKey)
         ? 'official'
         : (providerConfig.gatewayRoute || defaultGatewayRoute)
+    if (selection.compatMediaTemplate && !OFFICIAL_ONLY_PROVIDER_KEYS.has(providerKey)) {
+        gatewayRoute = 'openai-compat'
+    }
 
     const { prompt, ...providerOptions } = options || {}
     if (gatewayRoute === 'openai-compat') {

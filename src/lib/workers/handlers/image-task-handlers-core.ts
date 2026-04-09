@@ -94,7 +94,13 @@ export async function handleModifyAssetImageTask(job: Job<TaskJobData>) {
         }
       }
     }
-    const normalizedExtras = await normalizeReferenceImagesForGeneration(extraReferenceInputs)
+    const normalizedExtras = await normalizeReferenceImagesForGeneration(extraReferenceInputs, {
+      requireAtLeastOne: false,
+      context: {
+        taskType: 'modify_project_character_extra_references',
+        appearanceId,
+      },
+    })
     const referenceImages = Array.from(new Set([requiredReference, ...normalizedExtras]))
     const currentDescription = readIndexedDescription({
       descriptions: appearance.descriptions,
@@ -202,7 +208,13 @@ export async function handleModifyAssetImageTask(job: Job<TaskJobData>) {
         }
       }
     }
-    const normalizedExtras = await normalizeReferenceImagesForGeneration(extraReferenceInputs)
+    const normalizedExtras = await normalizeReferenceImagesForGeneration(extraReferenceInputs, {
+      requireAtLeastOne: false,
+      context: {
+        taskType: 'modify_project_location_extra_references',
+        locationImageId: locationImage.id,
+      },
+    })
     const referenceImages = Array.from(new Set([requiredReference, ...normalizedExtras]))
 
     const isProp = type === 'prop'
@@ -333,7 +345,13 @@ export async function handleModifyAssetImageTask(job: Job<TaskJobData>) {
       }
     }
 
-    const normalizedExtras = await normalizeReferenceImagesForGeneration(extraReferenceInputs)
+    const normalizedExtras = await normalizeReferenceImagesForGeneration(extraReferenceInputs, {
+      requireAtLeastOne: false,
+      context: {
+        taskType: 'modify_project_storyboard_extra_references',
+        panelId: panel.id,
+      },
+    })
     const uniqueReferences = Array.from(new Set([requiredReference, ...normalizedExtras]))
     const prompt = `请根据以下指令修改分镜图片，保持镜头语言和主体一致：\n${modifyPrompt}`
     const source = await resolveImageSourceFromGeneration(job, {

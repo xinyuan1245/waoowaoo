@@ -1,5 +1,6 @@
 import OpenAI from 'openai'
 import { ApiError } from '@/lib/api-errors'
+import { setProxy } from '../../../lib/prompts/proxy'
 
 type SupportedProvider =
   | 'openrouter'
@@ -9,6 +10,7 @@ type SupportedProvider =
   | 'bailian'
   | 'deepseek'
   | 'moonshot'
+  | 'apimart'
   | 'siliconflow'
   | 'openai-compatible'
   | 'gemini-compatible'
@@ -46,6 +48,7 @@ function normalizeProvider(payload: TestConnectionPayload): SupportedProvider {
     case 'bailian':
     case 'deepseek':
     case 'moonshot':
+    case 'apimart':
     case 'siliconflow':
     case 'custom':
       return provider
@@ -162,6 +165,7 @@ async function testSiliconFlowProbe(apiKey: string): Promise<{ model?: string; a
 }
 
 export async function testLlmConnection(payload: TestConnectionPayload): Promise<LlmConnectionTestResult> {
+  await setProxy()
   const provider = normalizeProvider(payload)
   const apiKey = requireApiKey(payload)
   const requestedModel = typeof payload.model === 'string' ? payload.model.trim() : ''
@@ -213,6 +217,14 @@ export async function testLlmConnection(payload: TestConnectionPayload): Promise
         model: requestedModel || 'kimi-k2.5',
       })
       return { provider, message: 'moonshot 连接成功', ...tested }
+    }
+    case 'apimart': {
+      const tested = await testOpenAICompatibleConnection({
+        apiKey,
+        baseURL: 'https://api.apimart.ai/v1',
+        model: requestedModel || 'gpt-5-mini',
+      })
+      return { provider, message: 'apimart 连接成功', ...tested }
     }
     case 'siliconflow': {
       const tested = await testSiliconFlowProbe(apiKey)

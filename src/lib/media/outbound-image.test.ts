@@ -22,6 +22,20 @@ vi.mock('@/lib/media/service', () => ({
 describe('outbound-image normalization', () => {
   const fetchMock = vi.fn()
   const resolveStorageKeyMock = vi.mocked(resolveStorageKeyFromMediaValue)
+  const pngBytes = () => {
+    const buffer = Buffer.from(
+      'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAFgwJ/l6dX8wAAAABJRU5ErkJggg==',
+      'base64',
+    )
+    return buffer.buffer.slice(buffer.byteOffset, buffer.byteOffset + buffer.byteLength)
+  }
+  const jpegBytes = () => {
+    const buffer = Buffer.from(
+      '/9j/4AAQSkZJRgABAQAAAQABAAD/2wBDAP//////////////////////////////////////////////////////////////////////////////////////2wBDAf//////////////////////////////////////////////////////////////////////////////////////wAARCAABAAEDASIAAhEBAxEB/8QAFQABAQAAAAAAAAAAAAAAAAAAAAX/xAAUEAEAAAAAAAAAAAAAAAAAAAAA/9oADAMBAAIQAxAAAAH/xAAUEAEAAAAAAAAAAAAAAAAAAAAA/9oACAEBAAEFAqf/xAAUEQEAAAAAAAAAAAAAAAAAAAAA/9oACAEDAQE/Aaf/xAAUEQEAAAAAAAAAAAAAAAAAAAAA/9oACAECAQE/Aaf/xAAUEAEAAAAAAAAAAAAAAAAAAAAA/9oACAEBAAY/Aqf/xAAUEAEAAAAAAAAAAAAAAAAAAAAA/9oACAEBAAE/IV//2gAMAwEAAgADAAAAEP/EFBQRAQAAAAAAAAAAAAAAAAAAABD/2gAIAQMBAT8QE//EFBQRAQAAAAAAAAAAAAAAAAAAABD/2gAIAQIBAT8QE//EFBABAQAAAAAAAAAAAAAAAAAAARD/2gAIAQEAAT8QE//Z',
+      'base64',
+    )
+    return buffer.buffer.slice(buffer.byteOffset, buffer.byteOffset + buffer.byteLength)
+  }
 
   beforeEach(() => {
     vi.clearAllMocks()
@@ -36,7 +50,7 @@ describe('outbound-image normalization', () => {
       ok: true,
       status: 200,
       headers: new Headers({ 'content-type': 'image/png' }),
-      arrayBuffer: async () => Uint8Array.from([1, 2, 3]).buffer,
+      arrayBuffer: async () => pngBytes(),
     } as unknown as Response)
   })
 
@@ -90,7 +104,7 @@ describe('outbound-image normalization', () => {
 
   it('converts normalized source to data url base64 payload', async () => {
     const dataUrl = await normalizeToBase64ForGeneration('images/direct.png')
-    expect(dataUrl).toBe('data:image/png;base64,AQID')
+    expect(dataUrl).toMatch(/^data:image\/png;base64,/)
   })
 
   it('sniffs png mime when upstream returns application/octet-stream', async () => {
@@ -98,14 +112,11 @@ describe('outbound-image normalization', () => {
       ok: true,
       status: 200,
       headers: new Headers({ 'content-type': 'application/octet-stream' }),
-      arrayBuffer: async () => Uint8Array.from([
-        0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a,
-        0x00, 0x00, 0x00, 0x0d,
-      ]).buffer,
+      arrayBuffer: async () => pngBytes(),
     } as Response)
 
     const dataUrl = await normalizeToBase64ForGeneration('images/direct.png')
-    expect(dataUrl).toBe('data:image/png;base64,iVBORw0KGgoAAAAN')
+    expect(dataUrl).toMatch(/^data:image\/png;base64,/)
   })
 
   it('sniffs jpeg mime when upstream returns application/octet-stream', async () => {
@@ -113,15 +124,11 @@ describe('outbound-image normalization', () => {
       ok: true,
       status: 200,
       headers: new Headers({ 'content-type': 'application/octet-stream' }),
-      arrayBuffer: async () => Uint8Array.from([
-        0xff, 0xd8, 0xff, 0xe0,
-        0x00, 0x10, 0x4a, 0x46,
-        0x49, 0x46, 0x00, 0x01,
-      ]).buffer,
+      arrayBuffer: async () => jpegBytes(),
     } as Response)
 
     const dataUrl = await normalizeToBase64ForGeneration('images/direct.jpg')
-    expect(dataUrl).toBe('data:image/jpeg;base64,/9j/4AAQSkZJRgAB')
+    expect(dataUrl).toMatch(/^data:image\/jpeg;base64,/)
   })
 
   it('normalizes references with dedupe and failure isolation', async () => {
@@ -138,7 +145,7 @@ describe('outbound-image normalization', () => {
         ok: true,
         status: 200,
         headers: new Headers({ 'content-type': 'image/png' }),
-        arrayBuffer: async () => Uint8Array.from([7, 8, 9]).buffer,
+        arrayBuffer: async () => pngBytes(),
       } as Response
     })
 
@@ -148,7 +155,22 @@ describe('outbound-image normalization', () => {
       '/api/bad.png',
     ])
     expect(normalized).toHaveLength(1)
-    expect(normalized[0]).toBe('data:image/png;base64,BwgJ')
+    expect(normalized[0]).toMatch(/^data:image\/png;base64,/)
+  })
+
+  it('can skip all bad optional references without failing the task', async () => {
+    fetchMock.mockResolvedValue({
+      ok: false,
+      status: 404,
+      headers: new Headers(),
+      arrayBuffer: async () => new ArrayBuffer(0),
+    } as Response)
+
+    const normalized = await normalizeReferenceImagesForGeneration(['images/missing.png'], {
+      requireAtLeastOne: false,
+    })
+
+    expect(normalized).toEqual([])
   })
 
   it('reports structured issue and fails explicitly when all references fail', async () => {

@@ -175,7 +175,13 @@ export async function handlePanelImageTask(job: Job<TaskJobData>) {
 
   const candidateCount = clampCount(payload.candidateCount ?? payload.count, 1, 4, 1)
   const refs = await collectPanelReferenceImages(projectData, panel)
-  const normalizedRefs = await normalizeReferenceImagesForGeneration(refs)
+  const normalizedRefs = await normalizeReferenceImagesForGeneration(refs, {
+    requireAtLeastOne: false,
+    context: {
+      taskType: 'panel_image',
+      panelId,
+    },
+  })
 
   const logger = createScopedLogger({
     module: 'worker.panel-image',

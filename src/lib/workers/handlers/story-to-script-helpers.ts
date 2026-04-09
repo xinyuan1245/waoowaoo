@@ -137,7 +137,9 @@ export async function persistAnalyzedLocations(params: {
       },
     })
 
-    const cleanDescriptions = mergedDescriptions.map((desc) => removeLocationPromptSuffix(desc || ''))
+    const cleanDescriptions = mergedDescriptions
+      .map((desc) => removeLocationPromptSuffix(desc || ''))
+      .slice(0, 1)
     const availableSlots = normalizeLocationAvailableSlots(item.available_slots)
     await seedProjectLocationBackedImageSlots({
       locationId: location.id,

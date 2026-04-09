@@ -21,6 +21,7 @@ type PresetProviderType = 'ark' | 'google' | 'openrouter' | 'minimax' | 'fal' | 
   | 'bailian'
   | 'deepseek'
   | 'moonshot'
+  | 'apimart'
   | 'siliconflow'
 type CompatibleProviderType = 'openai-compatible' | 'gemini-compatible'
 
@@ -838,11 +839,16 @@ async function testMoonshotProvider(apiKey: string, llmModel?: string): Promise<
   return testCompatibleProvider('https://api.moonshot.cn/v1', apiKey, llmModel || 'kimi-k2.5')
 }
 
+async function testAPIMartProvider(apiKey: string, llmModel?: string): Promise<TestProviderResult> {
+  return testCompatibleProvider('https://api.apimart.ai/v1', apiKey, llmModel || 'gpt-5-mini')
+}
+
 // ---------------------------------------------------------------------------
 // Public API
 // ---------------------------------------------------------------------------
 
 export async function testProviderConnection(payload: TestProviderPayload): Promise<TestProviderResult> {
+  await setProxy()
   const { apiType, baseUrl, apiKey, llmModel } = payload
 
   if (!apiKey) {
@@ -883,6 +889,8 @@ export async function testProviderConnection(payload: TestProviderPayload): Prom
       return testDeepSeekProvider(apiKey, llmModel)
     case 'moonshot':
       return testMoonshotProvider(apiKey, llmModel)
+    case 'apimart':
+      return testAPIMartProvider(apiKey, llmModel)
     case 'siliconflow':
       return testSiliconFlowProvider(apiKey)
     default:

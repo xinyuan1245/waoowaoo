@@ -55,6 +55,62 @@ function toValidBoundaryIndex(value: unknown, textLength: number): number | null
   return idx
 }
 
+function resolveEpisodeStart(
+  markerMatcher: ReturnType<typeof createTextMarkerMatcher>,
+  startMarker: string,
+  rawStartIndex: number | null,
+  searchFrom: number,
+  contentLength: number,
+): { startIndex: number; markerMatched: boolean } {
+  const startMatch = markerMatcher.matchMarker(startMarker, searchFrom)
+  if (startMatch) {
+    if (rawStartIndex !== null && Math.abs(rawStartIndex - startMatch.startIndex) > 200) {
+      throw new Error('startIndex 与 marker 偏差过大')
+    }
+    return {
+      startIndex: startMatch.startIndex,
+      markerMatched: true,
+    }
+  }
+
+  if (rawStartIndex !== null && rawStartIndex >= searchFrom && rawStartIndex < contentLength) {
+    return {
+      startIndex: rawStartIndex,
+      markerMatched: false,
+    }
+  }
+
+  throw new Error('startMarker 无法定位')
+}
+
+function resolveEpisodeEnd(
+  markerMatcher: ReturnType<typeof createTextMarkerMatcher>,
+  endMarker: string,
+  rawEndIndex: number | null,
+  startSearchFrom: number,
+  contentLength: number,
+): { endIndex: number; markerMatched: boolean } {
+  const endMatch = markerMatcher.matchMarker(endMarker, startSearchFrom)
+  if (endMatch) {
+    if (rawEndIndex !== null && Math.abs(rawEndIndex - endMatch.endIndex) > 200) {
+      throw new Error('endIndex 与 marker 偏差过大')
+    }
+    return {
+      endIndex: endMatch.endIndex,
+      markerMatched: true,
+    }
+  }
+
+  if (rawEndIndex !== null && rawEndIndex > startSearchFrom && rawEndIndex <= contentLength) {
+    return {
+      endIndex: rawEndIndex,
+      markerMatched: false,
+    }
+  }
+
+  throw new Error('endMarker 无法定位')
+}
+
 export async function handleEpisodeSplitTask(job: Job<TaskJobData>) {
   const payload = (job.data.payload || {}) as Record<string, unknown>
   const projectId = job.data.projectId
@@ -190,26 +246,37 @@ export async function handleEpisodeSplitTask(job: Job<TaskJobData>) {
             throw new Error(`episode_${idx + 1} 必须同时提供 startMarker/endMarker`)
           }
 
-          const startMatch = markerMatcher.matchMarker(startMarker, searchFrom)
-          if (!startMatch) {
-            throw new Error(`episode_${idx + 1} startMarker 无法定位`)
-          }
-          const endMatch = markerMatcher.matchMarker(endMarker, startMatch.endIndex)
-          if (!endMatch) {
-            throw new Error(`episode_${idx + 1} endMarker 无法定位`)
-          }
-
           const rawStartIndex = toValidBoundaryIndex(ep.startIndex, content.length)
-          if (rawStartIndex !== null && Math.abs(rawStartIndex - startMatch.startIndex) > 200) {
-            throw new Error(`episode_${idx + 1} startIndex 与 marker 偏差过大`)
-          }
           const rawEndIndex = toValidBoundaryIndex(ep.endIndex, content.length)
-          if (rawEndIndex !== null && Math.abs(rawEndIndex - endMatch.endIndex) > 200) {
-            throw new Error(`episode_${idx + 1} endIndex 与 marker 偏差过大`)
+
+          let startPos: number
+          try {
+            startPos = resolveEpisodeStart(
+              markerMatcher,
+              startMarker,
+              rawStartIndex,
+              searchFrom,
+              content.length,
+            ).startIndex
+          } catch (error) {
+            const message = error instanceof Error ? error.message : 'startMarker 无法定位'
+            throw new Error(`episode_${idx + 1} ${message}`)
           }
 
-          const startPos = startMatch.startIndex
-          const endPos = endMatch.endIndex
+          let endPos: number
+          try {
+            endPos = resolveEpisodeEnd(
+              markerMatcher,
+              endMarker,
+              rawEndIndex,
+              Math.max(startPos, searchFrom),
+              content.length,
+            ).endIndex
+          } catch (error) {
+            const message = error instanceof Error ? error.message : 'endMarker 无法定位'
+            throw new Error(`episode_${idx + 1} ${message}`)
+          }
+
           if (startPos < searchFrom || endPos <= startPos || endPos > content.length) {
             throw new Error(`episode_${idx + 1} 边界区间无效`)
           }

@@ -68,4 +68,43 @@ describe('api-config preset coming soon', () => {
     expect(model).toBeDefined()
     expect(model?.name).toBe('Kimi K2.5')
   })
+
+  it('registers APIMart OpenAI-compatible preset text models', () => {
+    const modelIds = PRESET_MODELS
+      .filter((entry) => entry.provider === 'apimart' && entry.type === 'llm')
+      .map((entry) => entry.modelId)
+
+    expect(modelIds).toEqual(expect.arrayContaining([
+      'gpt-5',
+      'gpt-5-mini',
+      'claude-sonnet-4-5-20250929',
+      'gemini-2.5-pro',
+      'gemini-2.5-flash',
+      'deepseek-chat',
+    ]))
+  })
+
+  it('registers APIMart OpenAI-compatible preset image and video models with templates', () => {
+    const imageModels = PRESET_MODELS.filter((entry) => entry.provider === 'apimart' && entry.type === 'image')
+    const videoModels = PRESET_MODELS.filter((entry) => entry.provider === 'apimart' && entry.type === 'video')
+
+    expect(imageModels.map((entry) => entry.modelId)).toEqual(expect.arrayContaining([
+      'gpt-4o-image',
+      'gpt-image-1',
+      'gpt-image-1.5',
+      'seedream-4-5',
+      'seedream-5-0-lite',
+      'nano-banana-pro',
+      'nano-banana-2',
+    ]))
+    expect(videoModels.map((entry) => entry.modelId)).toEqual(expect.arrayContaining([
+      'sora-2',
+      'sora-2-pro',
+      'veo-3.1',
+      'kling-v2.5-turbo-pro',
+      'hailuo-02',
+    ]))
+    expect(imageModels.every((entry) => entry.compatMediaTemplate?.mediaType === 'image')).toBe(true)
+    expect(videoModels.every((entry) => entry.compatMediaTemplate?.mediaType === 'video')).toBe(true)
+  })
 })

@@ -123,7 +123,13 @@ export async function handleAssetHubModifyTask(job: Job<TaskJobData>) {
         }
       }
     }
-    const normalizedExtras = await normalizeReferenceImagesForGeneration(extraReferenceInputs)
+    const normalizedExtras = await normalizeReferenceImagesForGeneration(extraReferenceInputs, {
+      requireAtLeastOne: false,
+      context: {
+        taskType: 'modify_global_character_extra_references',
+        appearanceId: appearance.id,
+      },
+    })
     const referenceImages = Array.from(new Set([currentUrl, ...normalizedExtras]))
     const currentDescription = readIndexedDescription({
       descriptions: appearance.descriptions,
@@ -213,7 +219,13 @@ export async function handleAssetHubModifyTask(job: Job<TaskJobData>) {
         }
       }
     }
-    const normalizedExtras = await normalizeReferenceImagesForGeneration(extraReferenceInputs)
+    const normalizedExtras = await normalizeReferenceImagesForGeneration(extraReferenceInputs, {
+      requireAtLeastOne: false,
+      context: {
+        taskType: 'modify_global_location_extra_references',
+        locationImageId: locationImage.id,
+      },
+    })
     const referenceImages = Array.from(new Set([currentUrl, ...normalizedExtras]))
 
     const isProp = payload.type === 'prop'

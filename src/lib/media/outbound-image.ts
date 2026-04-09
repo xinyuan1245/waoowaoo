@@ -1,4 +1,5 @@
 import path from 'node:path'
+import sharp from 'sharp'
 import { createScopedLogger } from '@/lib/logging/core'
 import { resolveStorageKeyFromMediaValue } from '@/lib/media/service'
 
@@ -28,6 +29,8 @@ export type OutboundImageNormalizeErrorCode =
   | 'OUTBOUND_IMAGE_MEDIA_ROUTE_UNRESOLVED'
   | 'OUTBOUND_IMAGE_FETCH_FAILED'
   | 'OUTBOUND_IMAGE_FETCH_EXCEPTION'
+  | 'OUTBOUND_IMAGE_NOT_IMAGE'
+  | 'OUTBOUND_IMAGE_DECODE_FAILED'
   | 'OUTBOUND_IMAGE_REFERENCE_ALL_FAILED'
 
 export class OutboundImageNormalizeError extends Error {
@@ -278,6 +281,31 @@ function guessContentType(input: string, contentTypeHeader: string | null, buffe
   return MIME_BY_EXT[ext] || DEFAULT_CONTENT_TYPE
 }
 
+async function assertDecodableImage(input: string, mimeType: string, buffer: Buffer): Promise<void> {
+  if (!mimeType.startsWith('image/')) {
+    throw new OutboundImageNormalizeError({
+      code: 'OUTBOUND_IMAGE_NOT_IMAGE',
+      stage: 'normalize_base64',
+      input,
+      message: `outbound reference is not an image: ${mimeType}`,
+    })
+  }
+
+  try {
+    const metadata = await sharp(buffer).metadata()
+    if (!metadata.width || !metadata.height) {
+      throw new Error('missing image dimensions')
+    }
+  } catch (error) {
+    throw new OutboundImageNormalizeError({
+      code: 'OUTBOUND_IMAGE_DECODE_FAILED',
+      stage: 'normalize_base64',
+      input,
+      message: `outbound reference image cannot be decoded: ${error instanceof Error ? error.message : String(error)}`,
+    })
+  }
+}
+
 async function signStorageKey(storageKey: string): Promise<string> {
   const { getSignedUrl, toFetchableUrl } = await getStorageHelpers()
   return toFetchableUrl(getSignedUrl(storageKey, SIGNED_URL_TTL_SECONDS))
@@ -416,6 +444,7 @@ export async function normalizeToBase64ForGeneration(input: string): Promise<str
 
   const buffer = Buffer.from(await response.arrayBuffer())
   const mimeType = guessContentType(normalizedUrl, response.headers.get('content-type'), buffer)
+  await assertDecodableImage(normalizedUrl, mimeType, buffer)
   return `data:${mimeType};base64,${buffer.toString('base64')}`
 }
 
@@ -447,6 +476,7 @@ export async function normalizeReferenceImagesForGeneration(
   options: {
     onIssue?: (issue: OutboundImageNormalizationIssue) => void
     context?: Record<string, unknown>
+    requireAtLeastOne?: boolean
   } = {},
 ): Promise<string[]> {
   const seen = new Set<string>()
@@ -476,7 +506,7 @@ export async function normalizeReferenceImagesForGeneration(
     }
   }
 
-  if (candidateCount > 0 && normalized.length === 0) {
+  if (options.requireAtLeastOne !== false && candidateCount > 0 && normalized.length === 0) {
     throw new OutboundImageNormalizeError({
       code: 'OUTBOUND_IMAGE_REFERENCE_ALL_FAILED',
       stage: 'normalize_reference',

@@ -2,6 +2,87 @@ import { describe, expect, it, vi } from 'vitest'
 import { runScriptToStoryboardOrchestrator } from '@/lib/novel-promotion/script-to-storyboard/orchestrator'
 
 describe('script-to-storyboard orchestrator retry', () => {
+  it('runs phase1 merge and feeds merged panels into downstream phases', async () => {
+    const promptsByAction = new Map<string, string>()
+    const runStep = vi.fn(async (_meta, prompt: string, action: string) => {
+      promptsByAction.set(action, prompt)
+      if (action === 'storyboard_phase1_plan') {
+        return {
+          text: JSON.stringify([
+            { panel_number: 1, description: '张三走进办公室', location: '场景A', source_text: '张三走进办公室', characters: [{ name: '角色A' }] },
+            { panel_number: 2, description: '张三在办公室说话特写', location: '场景A', source_text: '张三说话', characters: [{ name: '角色A' }] },
+          ]),
+          reasoning: '',
+        }
+      }
+      if (action === 'storyboard_phase1_merge') {
+        return {
+          text: JSON.stringify([
+            {
+              panel_number: 1,
+              description: '张三站在办公室门口说话',
+              location: '场景A',
+              source_text: '张三走进办公室 张三说话',
+              characters: [{ name: '角色A' }],
+              video_prompt: '张三走进办公室后停下说话，镜头从中景缓推到近景',
+            },
+          ]),
+          reasoning: '',
+        }
+      }
+      if (action === 'storyboard_phase2_cinematography') {
+        return { text: JSON.stringify([{ panel_number: 1, composition: '中景构图' }]), reasoning: '' }
+      }
+      if (action === 'storyboard_phase2_acting') {
+        return { text: JSON.stringify([{ panel_number: 1, characters: [] }]), reasoning: '' }
+      }
+      if (action === 'storyboard_phase3_detail') {
+        return {
+          text: JSON.stringify([
+            { panel_number: 1, description: '张三站在办公室门口说话', location: '场景A', source_text: '张三走进办公室 张三说话', characters: [{ name: '角色A' }] },
+          ]),
+          reasoning: '',
+        }
+      }
+      throw new Error(`unexpected action: ${action}`)
+    })
+
+    const result = await runScriptToStoryboardOrchestrator({
+      clips: [
+        {
+          id: 'clip-1',
+          content: '文本',
+          characters: JSON.stringify([{ name: '角色A' }]),
+          location: '场景A',
+          screenplay: null,
+        },
+      ],
+      novelPromotionData: {
+        characters: [{ name: '角色A', appearances: [] }],
+        locations: [{ name: '场景A', images: [] }],
+      },
+      promptTemplates: {
+        phase1PlanTemplate: '{clip_content} {clip_json} {characters_lib_name} {locations_lib_name} {characters_introduction} {characters_appearance_list} {characters_full_description}',
+        phase1MergeTemplate: 'merge {panels_json} {clip_json} {clip_content} {characters_full_description} {locations_description} {props_description}',
+        phase2CinematographyTemplate: '{panels_json} {panel_count} {locations_description} {characters_info}',
+        phase2ActingTemplate: '{panels_json} {panel_count} {characters_info}',
+        phase3DetailTemplate: '{panels_json} {characters_age_gender} {locations_description}',
+      },
+      runStep,
+    })
+
+    expect(runStep).toHaveBeenCalledWith(
+      expect.objectContaining({ stepId: 'clip_clip-1_phase1_merge' }),
+      expect.any(String),
+      'storyboard_phase1_merge',
+      2800,
+    )
+    expect(promptsByAction.get('storyboard_phase2_cinematography')).toContain('张三站在办公室门口说话')
+    expect(promptsByAction.get('storyboard_phase2_cinematography')).not.toContain('张三在办公室说话特写')
+    expect(result.summary.totalPanelCount).toBe(1)
+    expect(result.summary.totalStepCount).toBe(7)
+  })
+
   it('retries retryable step failures up to 3 attempts', async () => {
     const attemptsByAction = new Map<string, number>()
     const phase1Metas: Array<{ stepId: string; stepAttempt?: number }> = []

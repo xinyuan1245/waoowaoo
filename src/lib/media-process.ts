@@ -1,3 +1,4 @@
+import sharp from 'sharp'
 import { downloadAndUploadVideo, generateUniqueKey, toFetchableUrl, uploadObject } from '@/lib/storage'
 
 export interface ProcessMediaOptions {
@@ -41,6 +42,12 @@ export async function processMediaResult(options: ProcessMediaOptions): Promise<
       if (base64Start === -1) throw new Error('无法解析 data: URL')
       const base64Data = source.substring(base64Start + 8)
       const buffer = Buffer.from(base64Data, 'base64') as Buffer
+      if (type === 'image') {
+        const normalizedImage = await sharp(buffer)
+          .jpeg({ quality: 95, mozjpeg: true })
+          .toBuffer()
+        return await uploadObject(normalizedImage, key, undefined, contentType)
+      }
       return await uploadObject(buffer, key, undefined, contentType)
     }
 
@@ -49,8 +56,14 @@ export async function processMediaResult(options: ProcessMediaOptions): Promise<
     }
 
     const response = await fetch(toFetchableUrl(source))
+    if (!response.ok) {
+      throw new Error(`Failed to download generated image: ${response.status}`)
+    }
     const buffer = Buffer.from(await response.arrayBuffer()) as Buffer
-    return await uploadObject(buffer, key, undefined, contentType)
+    const normalizedImage = await sharp(buffer)
+      .jpeg({ quality: 95, mozjpeg: true })
+      .toBuffer()
+    return await uploadObject(normalizedImage, key, undefined, contentType)
   }
 
   return await uploadObject(source, key, undefined, contentType)

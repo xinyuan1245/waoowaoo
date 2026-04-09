@@ -188,7 +188,14 @@ describe('worker panel-variant-task-handler behavior', () => {
 
     expect(outboundMock.normalizeReferenceImagesForGeneration).toHaveBeenCalledWith([
       'https://signed.example/cos/panel-source.png',
-    ])
+    ], {
+      requireAtLeastOne: false,
+      context: {
+        taskType: 'panel_variant',
+        newPanelId: 'panel-new',
+        sourcePanelId: 'panel-source',
+      },
+    })
     expect(promptMock.buildPrompt).toHaveBeenCalledWith(expect.objectContaining({
       variables: expect.objectContaining({
         character_assets: '未使用角色参考图',

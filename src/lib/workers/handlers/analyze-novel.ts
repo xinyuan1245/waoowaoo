@@ -317,7 +317,9 @@ export async function handleAnalyzeNovelTask(job: Job<TaskJobData>) {
       select: { id: true },
     })
 
-    const cleanDescriptions = descriptions.map((value) => removeLocationPromptSuffix(value || ''))
+    const cleanDescriptions = descriptions
+      .map((value) => removeLocationPromptSuffix(value || ''))
+      .slice(0, 1)
     const availableSlots = normalizeLocationAvailableSlots(item.available_slots)
     await seedProjectLocationBackedImageSlots({
       locationId: created.id,

@@ -145,6 +145,7 @@ export async function handleScriptToStoryboardTask(job: Job<TaskJobData>) {
     || (isReasoningEffort(capabilityReasoningEffort) ? capabilityReasoningEffort : 'high')
 
   const phase1PlanTemplate = getPromptTemplate(PROMPT_IDS.NP_AGENT_STORYBOARD_PLAN, job.data.locale)
+  const phase1MergeTemplate = getPromptTemplate(PROMPT_IDS.NP_AGENT_STORYBOARD_MERGE, job.data.locale)
   const phase2CinematographyTemplate = getPromptTemplate(PROMPT_IDS.NP_AGENT_CINEMATOGRAPHER, job.data.locale)
   const phase2ActingTemplate = getPromptTemplate(PROMPT_IDS.NP_AGENT_ACTING_DIRECTION, job.data.locale)
   const phase3DetailTemplate = getPromptTemplate(PROMPT_IDS.NP_AGENT_STORYBOARD_DETAIL, job.data.locale)
@@ -297,6 +298,7 @@ export async function handleScriptToStoryboardTask(job: Job<TaskJobData>) {
                   },
                   promptTemplates: {
                     phase1PlanTemplate,
+                    phase1MergeTemplate,
                     phase2CinematographyTemplate,
                     phase2ActingTemplate,
                     phase3DetailTemplate,
@@ -338,6 +340,7 @@ export async function handleScriptToStoryboardTask(job: Job<TaskJobData>) {
                   },
                   promptTemplates: {
                     phase1PlanTemplate,
+                    phase1MergeTemplate,
                     phase2CinematographyTemplate,
                     phase2ActingTemplate,
                     phase3DetailTemplate,

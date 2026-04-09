@@ -11,18 +11,19 @@ const prismaMock = vi.hoisted(() => ({
   },
 }))
 
-const llmClientMock = vi.hoisted(() => ({
-  chatCompletion: vi.fn(async () => ({ id: 'completion-1' })),
-  getCompletionContent: vi.fn(() => JSON.stringify({
-    episodes: [
-      {
-        number: 1,
-        title: '第一集',
-        summary: '开端',
-        startMarker: 'START_MARKER',
-        endMarker: 'END_MARKER',
-      },
-    ],
+const aiRuntimeMock = vi.hoisted(() => ({
+  executeAiTextStep: vi.fn(async () => ({
+    text: JSON.stringify({
+      episodes: [
+        {
+          number: 1,
+          title: '第一集',
+          summary: '开端',
+          startMarker: 'START_MARKER',
+          endMarker: 'END_MARKER',
+        },
+      ],
+    }),
   })),
 }))
 
@@ -56,14 +57,19 @@ const promptMock = vi.hoisted(() => ({
   buildPrompt: vi.fn(() => 'EPISODE_SPLIT_PROMPT'),
 }))
 
+const parseJsonRepairMock = vi.hoisted(() => ({
+  safeParseJsonObject: vi.fn(),
+}))
+
 vi.mock('@/lib/prisma', () => ({ prisma: prismaMock }))
-vi.mock('@/lib/llm-client', () => llmClientMock)
+vi.mock('@/lib/ai-runtime', () => aiRuntimeMock)
 vi.mock('@/lib/config-service', () => configServiceMock)
 vi.mock('@/lib/llm-observe/internal-stream-context', () => internalStreamMock)
 vi.mock('@/lib/workers/shared', () => sharedMock)
 vi.mock('@/lib/workers/utils', () => utilsMock)
 vi.mock('@/lib/workers/handlers/llm-stream', () => llmStreamMock)
 vi.mock('@/lib/prompt-i18n', () => promptMock)
+vi.mock('@/lib/json-repair', () => parseJsonRepairMock)
 vi.mock('@/lib/novel-promotion/story-to-script/clip-matching', () => ({
   createTextMarkerMatcher: (content: string) => ({
     matchMarker: (marker: string, fromIndex = 0) => {
@@ -97,6 +103,17 @@ function buildJob(content: string): Job<TaskJobData> {
 describe('worker episode-split', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    parseJsonRepairMock.safeParseJsonObject.mockReturnValue({
+      episodes: [
+        {
+          number: 1,
+          title: '第一集',
+          summary: '开端',
+          startMarker: 'START_MARKER',
+          endMarker: 'END_MARKER',
+        },
+      ],
+    })
   })
 
   it('fails fast when content is too short', async () => {
@@ -123,5 +140,42 @@ describe('worker episode-split', () => {
     expect(result.episodes[0]?.title).toBe('第一集')
     expect(result.episodes[0]?.content).toContain('START_MARKER')
     expect(result.episodes[0]?.content).toContain('END_MARKER')
+  })
+
+  it('falls back to startIndex and endIndex when markers are not locatable', async () => {
+    const startToken = '第六集真正开头'
+    const endToken = '第六集真正结尾'
+    const content = [
+      '铺垫内容用于凑长度，确保文本超过一百字。'.repeat(4),
+      startToken,
+      '这里是第六集的正文内容，中间包含一些描述和对白，用于模拟实际分集内容。',
+      endToken,
+      '结尾补充内容继续拉长文本，确保测试数据长度足够。'.repeat(2),
+    ].join('')
+
+    const startIndex = content.indexOf(startToken)
+    const endIndex = content.indexOf(endToken) + endToken.length
+    parseJsonRepairMock.safeParseJsonObject.mockReturnValue({
+      episodes: [
+        {
+          number: 6,
+          title: '第六集',
+          summary: '继续推进',
+          startMarker: 'LLM 写错的 start marker',
+          endMarker: 'LLM 写错的 end marker',
+          startIndex,
+          endIndex,
+        },
+      ],
+    })
+
+    const job = buildJob(content)
+    const result = await handleEpisodeSplitTask(job)
+
+    expect(result.success).toBe(true)
+    expect(result.episodes).toHaveLength(1)
+    expect(result.episodes[0]?.number).toBe(6)
+    expect(result.episodes[0]?.content).toContain(startToken)
+    expect(result.episodes[0]?.content).toContain(endToken)
   })
 })

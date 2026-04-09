@@ -130,7 +130,13 @@ export async function handleCharacterImageTask(job: Job<TaskJobData>) {
       }
     }
   }
-  const primaryReferenceImages = await normalizeReferenceImagesForGeneration(primaryReferenceInputs)
+  const primaryReferenceImages = await normalizeReferenceImagesForGeneration(primaryReferenceInputs, {
+    requireAtLeastOne: false,
+    context: {
+      taskType: 'character_image_primary_reference',
+      appearanceId: appearance.id,
+    },
+  })
 
   const singleIndex = payload.imageIndex ?? payload.descriptionIndex
   const count = normalizeImageGenerationCount('character', payload.count)

@@ -57,6 +57,7 @@ type ClipInput = {
 
 export type ScriptToStoryboardPromptTemplates = {
   phase1PlanTemplate: string
+  phase1MergeTemplate?: string
   phase2CinematographyTemplate: string
   phase2ActingTemplate: string
   phase3DetailTemplate: string
@@ -199,6 +200,24 @@ function mergePanelsWithRules(params: {
   })
 }
 
+function buildStoryboardMergePrompt(params: {
+  template: string
+  planPanels: StoryboardPanel[]
+  clipJson: string
+  clipContent: string
+  charactersFullDescription: string
+  locationsDescription: string
+  propsDescription: string
+}) {
+  return params.template
+    .replace('{panels_json}', JSON.stringify(params.planPanels, null, 2))
+    .replace('{clip_json}', params.clipJson)
+    .replace('{clip_content}', params.clipContent)
+    .replace('{characters_full_description}', params.charactersFullDescription)
+    .replace('{locations_description}', params.locationsDescription)
+    .replace('{props_description}', params.propsDescription)
+}
+
 const MAX_STEP_ATTEMPTS = 3
 const MAX_RETRY_DELAY_MS = 10_000
 
@@ -294,7 +313,9 @@ export async function runScriptToStoryboardOrchestrator(
     DEFAULT_ANALYSIS_WORKFLOW_CONCURRENCY,
   )
 
-  const totalStepCount = clips.length * 4 + 2
+  const hasMergeStep = typeof promptTemplates.phase1MergeTemplate === 'string'
+    && promptTemplates.phase1MergeTemplate.trim().length > 0
+  const totalStepCount = clips.length * (hasMergeStep ? 5 : 4) + 2
   const charactersLibName = (novelPromotionData.characters || []).map((c) => c.name).join(', ') || '无'
   const locationsLibName = (novelPromotionData.locations || []).map((l) => l.name).join(', ') || '无'
   const charactersIntroduction = buildCharactersIntroduction(novelPromotionData.characters || [])
@@ -382,13 +403,55 @@ export async function runScriptToStoryboardOrchestrator(
       )
       phase1PanelsByClipId.set(clip.id, planPanels)
 
+      let mergedPlanPanels = planPanels
+      if (hasMergeStep && promptTemplates.phase1MergeTemplate) {
+        const mergeMeta = withStepMeta(
+          `clip_${clip.id}_phase1_merge`,
+          'progress.streamStep.storyboardMerge',
+          clips.length + index * 4 + 1,
+          totalStepCount,
+          {
+            dependsOn: [`clip_${clip.id}_phase1`],
+            groupId: `clip_${clip.id}`,
+            parallelKey: 'phase1_merge',
+            retryable: true,
+          },
+        )
+        const mergePrompt = buildStoryboardMergePrompt({
+          template: promptTemplates.phase1MergeTemplate,
+          planPanels,
+          clipJson,
+          clipContent,
+          charactersFullDescription: filteredFullDescription,
+          locationsDescription: filteredLocationsDescription,
+          propsDescription: filteredPropsDescription,
+        })
+        const { parsed } = await runStepWithRetry(
+          runStep, mergeMeta, mergePrompt, 'storyboard_phase1_merge', 2800,
+          (text) => {
+            const panels = parseJsonArray<StoryboardPanel>(text, `phase1-merge:${formatClipId(clip)}`)
+            const filtered = panels.filter(
+              (panel) => panel.description && panel.description !== '无' && panel.location !== '无',
+            )
+            if (filtered.length === 0) {
+              throw new Error(`Phase 1 merge returned empty valid panels for clip ${formatClipId(clip)}`)
+            }
+            return filtered
+          },
+        )
+        mergedPlanPanels = parsed.map((panel, panelIndex) => ({
+          ...panel,
+          panel_number: panelIndex + 1,
+        }))
+      }
+
       const phase2Meta = withStepMeta(
         `clip_${clip.id}_phase2_cinematography`,
         'progress.streamStep.cinematographyRules',
-        clips.length + index * 3 + 1,
+        hasMergeStep ? clips.length + index * 4 + 2 : clips.length + index * 3 + 1,
         totalStepCount,
         {
-          dependsOn: [`clip_${clip.id}_phase1`],
+          dependsOn: [hasMergeStep ? `clip_${clip.id}_phase1_merge` : `clip_${clip.id}_phase1`],
           groupId: `clip_${clip.id}`,
           parallelKey: 'phase2',
           retryable: true,
@@ -397,10 +460,10 @@ export async function runScriptToStoryboardOrchestrator(
       const phase2ActingMeta = withStepMeta(
         `clip_${clip.id}_phase2_acting`,
         'progress.streamStep.actingDirection',
-        clips.length + index * 3 + 2,
+        hasMergeStep ? clips.length + index * 4 + 3 : clips.length + index * 3 + 2,
         totalStepCount,
         {
-          dependsOn: [`clip_${clip.id}_phase1`],
+          dependsOn: [hasMergeStep ? `clip_${clip.id}_phase1_merge` : `clip_${clip.id}_phase1`],
           groupId: `clip_${clip.id}`,
           parallelKey: 'phase2',
           retryable: true,
@@ -409,7 +472,7 @@ export async function runScriptToStoryboardOrchestrator(
       const phase3Meta = withStepMeta(
         `clip_${clip.id}_phase3_detail`,
         'progress.streamStep.storyboardDetailRefine',
-        clips.length + index * 3 + 3,
+        hasMergeStep ? clips.length + index * 4 + 4 : clips.length + index * 3 + 3,
         totalStepCount,
         {
           dependsOn: [
@@ -423,19 +486,19 @@ export async function runScriptToStoryboardOrchestrator(
       )
 
       const phase2Prompt = promptTemplates.phase2CinematographyTemplate
-        .replace('{panels_json}', JSON.stringify(planPanels, null, 2))
-        .replace(/\{panel_count\}/g, String(planPanels.length))
+        .replace('{panels_json}', JSON.stringify(mergedPlanPanels, null, 2))
+        .replace(/\{panel_count\}/g, String(mergedPlanPanels.length))
         .replace('{locations_description}', filteredLocationsDescription)
         .replace('{characters_info}', filteredFullDescription)
         .replace('{props_description}', filteredPropsDescription)
 
       const phase2ActingPrompt = promptTemplates.phase2ActingTemplate
-        .replace('{panels_json}', JSON.stringify(planPanels, null, 2))
-        .replace(/\{panel_count\}/g, String(planPanels.length))
+        .replace('{panels_json}', JSON.stringify(mergedPlanPanels, null, 2))
+        .replace(/\{panel_count\}/g, String(mergedPlanPanels.length))
         .replace('{characters_info}', filteredFullDescription)
 
       const phase3Prompt = promptTemplates.phase3DetailTemplate
-        .replace('{panels_json}', JSON.stringify(planPanels, null, 2))
+        .replace('{panels_json}', JSON.stringify(mergedPlanPanels, null, 2))
         .replace('{characters_age_gender}', filteredFullDescription)
         .replace('{locations_description}', filteredLocationsDescription)
         .replace('{props_description}', filteredPropsDescription)

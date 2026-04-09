@@ -232,7 +232,14 @@ export async function handlePanelVariantTask(job: Job<TaskJobData>) {
     sourcePanelImageUrl,
     projectData,
   })
-  const normalizedRefs = await normalizeReferenceImagesForGeneration(refs)
+  const normalizedRefs = await normalizeReferenceImagesForGeneration(refs, {
+    requireAtLeastOne: false,
+    context: {
+      taskType: 'panel_variant',
+      newPanelId,
+      sourcePanelId,
+    },
+  })
 
   // 使用 agent_shot_variant_generate.txt 提示词模板
   const artStyle = getArtStylePrompt(modelConfig.artStyle, job.data.locale)

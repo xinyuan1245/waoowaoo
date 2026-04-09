@@ -10,6 +10,7 @@ export const PROMPT_IDS = {
   NP_AGENT_SHOT_VARIANT_GENERATE: 'np_agent_shot_variant_generate',
   NP_AGENT_STORYBOARD_DETAIL: 'np_agent_storyboard_detail',
   NP_AGENT_STORYBOARD_INSERT: 'np_agent_storyboard_insert',
+  NP_AGENT_STORYBOARD_MERGE: 'np_agent_storyboard_merge',
   NP_AGENT_STORYBOARD_PLAN: 'np_agent_storyboard_plan',
   NP_AI_STORY_EXPAND: 'np_ai_story_expand',
   NP_CHARACTER_CREATE: 'np_character_create',

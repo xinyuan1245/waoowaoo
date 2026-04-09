@@ -68,6 +68,17 @@ export const PROMPT_CATALOG: Record<PromptId, PromptCatalogEntry> = {
       'user_input',
     ],
   },
+  [PROMPT_IDS.NP_AGENT_STORYBOARD_MERGE]: {
+    pathStem: 'novel-promotion/agent_storyboard_merge',
+    variableKeys: [
+      'panels_json',
+      'clip_json',
+      'clip_content',
+      'characters_full_description',
+      'locations_description',
+      'props_description',
+    ],
+  },
   [PROMPT_IDS.NP_AGENT_STORYBOARD_PLAN]: {
     pathStem: 'novel-promotion/agent_storyboard_plan',
     variableKeys: [

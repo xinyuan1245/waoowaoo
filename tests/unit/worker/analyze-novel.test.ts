@@ -122,7 +122,7 @@ describe('worker analyze-novel behavior', () => {
           {
             name: '新地点',
             summary: '雨夜街道',
-            descriptions: ['雨夜街道 [SUFFIX]'],
+            descriptions: ['雨夜街道 [SUFFIX]', '同一街道白天版本 [SUFFIX]'],
           },
         ],
       }))
@@ -151,7 +151,7 @@ describe('worker analyze-novel behavior', () => {
     await expect(handleAnalyzeNovelTask(buildJob())).rejects.toThrow('请先填写全局资产设定或剧本内容')
   })
 
-  it('success path -> creates character/location and persists cleaned location descriptions', async () => {
+  it('success path -> creates character/location and persists one cleaned baseline location description', async () => {
     const result = await handleAnalyzeNovelTask(buildJob())
 
     expect(result).toEqual({

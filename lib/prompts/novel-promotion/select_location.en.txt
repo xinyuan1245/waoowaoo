@@ -12,15 +12,20 @@ Selection rules:
 2. Exclude abstract/metaphorical spaces and one-off passing mentions.
 3. Deduplicate aliases of the same location.
 4. Prefer exact library names when a location already exists.
+5. Merge time-of-day, lighting, weather, mood, and temporary state variants of the same physical place into one canonical location asset. For example, "living room_day", "living room_night", and "living room_rainy night" must become "living room".
+6. Split locations only when the physical space identity or layout is different, such as exterior square vs interior hall, classroom vs corridor, or an actually transformed/destroyed space.
+7. If a location needs visual consistency, output one baseline reference image only. Day, night, rain, fog, firelight, and similar changes belong in shot/video prompts, not in extra location assets or extra image descriptions.
 
-For each selected location, generate 3 wide-angle environment descriptions.
-Each description should:
+For each selected location, generate exactly 1 wide-angle environment description.
+The description should:
 - start with location name in brackets: "[Location Name] ..."
 - describe spatial layout, depth layers, major objects, and lighting direction
 - define at least 3 stable anchor objects or anchor areas that can support later character placement
 - make the usable open space around those anchors visually clear
 - remain environment-only (no named protagonist actions)
 - use concise, production-ready English
+- focus on stable structure, layout, materials, key objects, and reusable placement areas
+- avoid creating separate day/night/rain/fog/firelight or before/after variants
 
 If the source location is generic, such as 「classroom」, 「office」, or 「living room」, you must proactively make it specific enough for controllable image generation:
 - define the visible main structure
@@ -42,9 +47,7 @@ Output format (JSON only):
         "the position against the inner wall beside the rear doorway"
       ],
       "descriptions": [
-        "[location_name] description 1",
-        "[location_name] description 2",
-        "[location_name] description 3"
+        "[location_name] baseline reference description"
       ]
     }
   ]
@@ -58,5 +61,7 @@ Strict constraints:
 5. Slot descriptions must be concrete and reusable, tied to visible anchors such as the outer side of a desk row, the open floor before the blackboard, the inner side of a doorway, the space beside a window wall.
 6. Do not mention character posture, action, or emotion inside `available_slots`. Describe position only.
 7. Every anchor mentioned in `available_slots` must also appear clearly in the location descriptions.
-8. ⚠️ JSON SAFETY: All quotation marks in text (""''「」 etc.) MUST be converted to corner brackets「」in JSON string values. NEVER use raw ASCII double quotes " inside string values.
+8. `descriptions` must contain exactly 1 item for the location's single baseline reference image. Do not output multiple time/weather/lighting versions.
+9. Location names must be canonical physical place names. Do not add suffixes such as `_day`, `_night`, `_dusk`, `_rainy`, `_fog`, or `_destroyed` unless the physical place has truly become a different asset.
+10. ⚠️ JSON SAFETY: All quotation marks in text (""''「」 etc.) MUST be converted to corner brackets「」in JSON string values. NEVER use raw ASCII double quotes " inside string values.
   

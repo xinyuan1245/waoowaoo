@@ -88,6 +88,97 @@ export interface ApiConfig {
 
 type PresetModel = Omit<CustomModel, 'enabled' | 'modelKey' | 'price'>
 
+const APIMART_IMAGE_TEMPLATE: OpenAICompatMediaTemplate = {
+    version: 1,
+    mediaType: 'image',
+    mode: 'async',
+    create: {
+        method: 'POST',
+        path: '/images/generations',
+        contentType: 'application/json',
+        bodyTemplate: {
+            model: '{{model}}',
+            prompt: '{{prompt}}',
+            image_urls: '{{images}}',
+        },
+    },
+    status: {
+        method: 'GET',
+        path: '/tasks/{{task_id}}',
+    },
+    response: {
+        taskIdPath: '$.data.task_id',
+        statusPath: '$.data.status',
+        outputUrlPath: '$.data.result.images[0].url[0]',
+        outputUrlsPath: '$.data.result.images',
+        errorPath: '$.error.message',
+    },
+    polling: {
+        intervalMs: 3000,
+        timeoutMs: 600000,
+        doneStates: ['succeeded', 'completed'],
+        failStates: ['failed', 'error', 'cancelled', 'canceled'],
+    },
+}
+
+const APIMART_VIDEO_TEMPLATE: OpenAICompatMediaTemplate = {
+    version: 1,
+    mediaType: 'video',
+    mode: 'async',
+    create: {
+        method: 'POST',
+        path: '/videos/generations',
+        contentType: 'application/json',
+        bodyTemplate: {
+            model: '{{model}}',
+            prompt: '{{prompt}}',
+            image_urls: '{{images}}',
+            duration: '{{duration}}',
+            resolution: '{{resolution}}',
+            aspect_ratio: '{{aspect_ratio}}',
+        },
+    },
+    status: {
+        method: 'GET',
+        path: '/tasks/{{task_id}}',
+    },
+    response: {
+        taskIdPath: '$.data.task_id',
+        statusPath: '$.data.status',
+        outputUrlPath: '$.data.result.videos[0].url[0]',
+        outputUrlsPath: '$.data.result.videos',
+        errorPath: '$.error.message',
+    },
+    polling: {
+        intervalMs: 3000,
+        timeoutMs: 1200000,
+        doneStates: ['succeeded', 'completed'],
+        failStates: ['failed', 'error', 'cancelled', 'canceled'],
+    },
+}
+
+function makeApimartImageModel(modelId: string, name: string): PresetModel {
+    return {
+        modelId,
+        name,
+        type: 'image',
+        provider: 'apimart',
+        compatMediaTemplate: APIMART_IMAGE_TEMPLATE,
+        compatMediaTemplateSource: 'manual',
+    }
+}
+
+function makeApimartVideoModel(modelId: string, name: string): PresetModel {
+    return {
+        modelId,
+        name,
+        type: 'video',
+        provider: 'apimart',
+        compatMediaTemplate: APIMART_VIDEO_TEMPLATE,
+        compatMediaTemplateSource: 'manual',
+    }
+}
+
 // 预设模型
 export const PRESET_MODELS: PresetModel[] = [
     // 文本模型
@@ -98,6 +189,16 @@ export const PRESET_MODELS: PresetModel[] = [
     { modelId: 'anthropic/claude-sonnet-4', name: 'Claude Sonnet 4', type: 'llm', provider: 'openrouter' },
     { modelId: 'openai/gpt-5.4', name: 'GPT-5.4', type: 'llm', provider: 'openrouter' },
     { modelId: 'google/gemini-3.1-flash-lite-preview', name: 'Gemini 3.1 Flash Lite', type: 'llm', provider: 'openrouter' },
+    // APIMart OpenAI-compatible 文本模型
+    { modelId: 'gpt-5', name: 'GPT-5', type: 'llm', provider: 'apimart' },
+    { modelId: 'gpt-5-mini', name: 'GPT-5 Mini', type: 'llm', provider: 'apimart' },
+    { modelId: 'claude-sonnet-4-5-20250929', name: 'Claude Sonnet 4.5', type: 'llm', provider: 'apimart' },
+    { modelId: 'gemini-2.5-pro', name: 'Gemini 2.5 Pro', type: 'llm', provider: 'apimart' },
+    { modelId: 'gemini-2.5-flash', name: 'Gemini 2.5 Flash', type: 'llm', provider: 'apimart' },
+    { modelId: 'gpt-4o', name: 'GPT-4o', type: 'llm', provider: 'apimart' },
+    { modelId: 'gpt-4o-mini', name: 'GPT-4o Mini', type: 'llm', provider: 'apimart' },
+    { modelId: 'deepseek-chat', name: 'DeepSeek Chat', type: 'llm', provider: 'apimart' },
+    { modelId: 'deepseek-reasoner', name: 'DeepSeek Reasoner', type: 'llm', provider: 'apimart' },
     // Google AI Studio 文本模型
     { modelId: 'gemini-3.1-pro-preview', name: 'Gemini 3.1 Pro', type: 'llm', provider: 'google' },
     { modelId: 'gemini-3-flash-preview', name: 'Gemini 3 Flash', type: 'llm', provider: 'google' },
@@ -137,6 +238,16 @@ export const PRESET_MODELS: PresetModel[] = [
     { modelId: 'imagen-4.0-generate-001', name: 'Imagen 4', type: 'image', provider: 'google' },
     { modelId: 'imagen-4.0-ultra-generate-001', name: 'Imagen 4 Ultra', type: 'image', provider: 'google' },
     { modelId: 'imagen-4.0-fast-generate-001', name: 'Imagen 4 Fast', type: 'image', provider: 'google' },
+    // APIMart OpenAI-compatible 图像模型
+    makeApimartImageModel('gpt-4o-image', 'GPT-4o Image'),
+    makeApimartImageModel('gpt-image-1', 'GPT Image 1'),
+    makeApimartImageModel('gpt-image-1.5', 'GPT Image 1.5'),
+    makeApimartImageModel('seedream-4', 'Seedream 4'),
+    makeApimartImageModel('seedream-4-5', 'Seedream 4.5'),
+    makeApimartImageModel('seedream-5-0-lite', 'Seedream 5.0 Lite'),
+    makeApimartImageModel('nano-banana', 'Nano Banana'),
+    makeApimartImageModel('nano-banana-pro', 'Nano Banana Pro'),
+    makeApimartImageModel('nano-banana-2', 'Nano Banana 2'),
     // 视频模型
     { modelId: 'doubao-seedance-1-0-pro-fast-251015', name: 'Seedance 1.0 Pro Fast', type: 'video', provider: 'ark' },
     { modelId: 'doubao-seedance-1-0-lite-i2v-250428', name: 'Seedance 1.0 Lite', type: 'video', provider: 'ark' },
@@ -164,6 +275,14 @@ export const PRESET_MODELS: PresetModel[] = [
     { modelId: 'fal-ai/kling-video/v2.5-turbo/pro/image-to-video', name: 'Kling 2.5 Turbo Pro', type: 'video', provider: 'fal' },
     { modelId: 'fal-ai/kling-video/v3/standard/image-to-video', name: 'Kling 3 Standard', type: 'video', provider: 'fal' },
     { modelId: 'fal-ai/kling-video/v3/pro/image-to-video', name: 'Kling 3 Pro', type: 'video', provider: 'fal' },
+    // APIMart OpenAI-compatible 视频模型
+    makeApimartVideoModel('sora-2', 'Sora 2'),
+    makeApimartVideoModel('sora-2-pro', 'Sora 2 Pro'),
+    makeApimartVideoModel('veo-3.1', 'Veo 3.1'),
+    makeApimartVideoModel('veo-3.1-fast', 'Veo 3.1 Fast'),
+    makeApimartVideoModel('kling-v2.5-turbo-pro', 'Kling 2.5 Turbo Pro'),
+    makeApimartVideoModel('hailuo-02', 'Hailuo 02'),
+    makeApimartVideoModel('wan2.5-i2v', 'Wan 2.5 I2V'),
 
     // 音频模型
     { modelId: 'fal-ai/index-tts-2/text-to-speech', name: 'IndexTTS 2', type: 'audio', provider: 'fal' },
@@ -208,6 +327,7 @@ export const PRESET_PROVIDERS: Omit<Provider, 'apiKey' | 'hasApiKey'>[] = [
     { id: 'bailian', name: 'Alibaba Bailian' },
     { id: 'deepseek', name: 'DeepSeek', baseUrl: 'https://api.deepseek.com' },
     { id: 'moonshot', name: 'Moonshot', baseUrl: 'https://api.moonshot.cn/v1' },
+    { id: 'apimart', name: 'APIMart', baseUrl: 'https://api.apimart.ai/v1' },
     { id: 'openrouter', name: 'OpenRouter', baseUrl: 'https://openrouter.ai/api/v1' },
     { id: 'minimax', name: 'MiniMax Hailuo', baseUrl: 'https://api.minimaxi.com/v1' },
     { id: 'vidu', name: 'Vidu' },
@@ -221,6 +341,7 @@ const ZH_PROVIDER_NAME_MAP: Record<string, string> = {
     bailian: '阿里云百炼',
     deepseek: '深度求索 DeepSeek',
     moonshot: '月之暗面 Moonshot',
+    apimart: 'APIMart 模型网关',
     siliconflow: '硅基流动',
 }
 
@@ -335,6 +456,15 @@ export const PROVIDER_TUTORIALS: ProviderTutorial[] = [
             {
                 text: 'moonshot_step1',
                 url: 'https://platform.moonshot.cn/'
+            }
+        ]
+    },
+    {
+        providerId: 'apimart',
+        steps: [
+            {
+                text: 'apimart_step1',
+                url: 'https://apimart.ai/'
             }
         ]
     },

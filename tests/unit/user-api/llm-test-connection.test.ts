@@ -132,4 +132,23 @@ describe('llm test connection', () => {
       temperature: 0,
     })
   })
+
+  it('tests apimart provider via openai-compatible endpoint', async () => {
+    const result = await testLlmConnection({
+      provider: 'apimart',
+      apiKey: 'am-key',
+      model: 'gpt-5-mini',
+    })
+
+    expect(result.provider).toBe('apimart')
+    expect(result.message).toBe('apimart 连接成功')
+    expect(result.model).toBe('gpt-4.1-mini')
+    expect(result.answer).toBe('2')
+    expect(openAIState.create).toHaveBeenCalledWith({
+      model: 'gpt-5-mini',
+      messages: [{ role: 'user', content: '1+1等于几？只回答数字' }],
+      max_tokens: 10,
+      temperature: 0,
+    })
+  })
 })

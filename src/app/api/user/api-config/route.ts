@@ -188,6 +188,7 @@ const PRICING_PROVIDER_ALIASES: Readonly<Record<string, string>> = {
 const OPTIONAL_PRICING_PROVIDER_KEYS = new Set([
   'openai-compatible',
   'gemini-compatible',
+  'apimart',
   'bailian',
   'siliconflow',
 ])
@@ -971,7 +972,8 @@ function isOpenAICompatibleLlmModel(model: StoredModel): boolean {
 }
 
 function isOpenAICompatibleMediaTemplateModel(model: StoredModel): boolean {
-  if (getProviderKey(model.provider) !== 'openai-compatible') return false
+  const providerKey = getProviderKey(model.provider)
+  if (providerKey !== 'openai-compatible' && providerKey !== 'apimart') return false
   return model.type === 'image' || model.type === 'video'
 }
 

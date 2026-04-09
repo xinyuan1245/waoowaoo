@@ -110,6 +110,11 @@ function isLlmProtocol(value: unknown): value is LlmProtocolType {
   return value === 'responses' || value === 'chat-completions'
 }
 
+function canUseCompatMediaTemplate(provider: string): boolean {
+  const providerKey = getProviderKey(provider).toLowerCase()
+  return providerKey === 'openai-compatible' || providerKey === 'apimart'
+}
+
 function assertModelKey(value: string, field: string): { provider: string; modelId: string; modelKey: string } {
   const parsed = parseModelKeyStrict(value)
   if (!parsed) {
@@ -337,7 +342,7 @@ export async function resolveModelSelection(
   const llmProtocol = mediaType === 'llm' && providerKey === 'openai-compatible'
     ? (exact.llmProtocol || 'chat-completions')
     : undefined
-  const compatMediaTemplate = (mediaType === 'image' || mediaType === 'video') && providerKey === 'openai-compatible'
+  const compatMediaTemplate = (mediaType === 'image' || mediaType === 'video') && canUseCompatMediaTemplate(exact.provider)
     ? exact.compatMediaTemplate
     : undefined
 
@@ -368,7 +373,7 @@ async function resolveSingleModelSelection(
   const llmProtocol = mediaType === 'llm' && providerKey === 'openai-compatible'
     ? (model.llmProtocol || 'chat-completions')
     : undefined
-  const compatMediaTemplate = (mediaType === 'image' || mediaType === 'video') && providerKey === 'openai-compatible'
+  const compatMediaTemplate = (mediaType === 'image' || mediaType === 'video') && canUseCompatMediaTemplate(model.provider)
     ? model.compatMediaTemplate
     : undefined
 

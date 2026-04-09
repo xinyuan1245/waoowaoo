@@ -20,6 +20,7 @@ export interface TestProviderResult {
 type PresetProviderType = 'ark' | 'google' | 'openrouter' | 'minimax' | 'fal' | 'vidu'
   | 'bailian'
   | 'deepseek'
+  | 'moonshot'
   | 'siliconflow'
 type CompatibleProviderType = 'openai-compatible' | 'gemini-compatible'
 
@@ -833,6 +834,10 @@ async function testDeepSeekProvider(apiKey: string, llmModel?: string): Promise<
   return testCompatibleProvider('https://api.deepseek.com', apiKey, llmModel)
 }
 
+async function testMoonshotProvider(apiKey: string, llmModel?: string): Promise<TestProviderResult> {
+  return testCompatibleProvider('https://api.moonshot.cn/v1', apiKey, llmModel || 'kimi-k2.5')
+}
+
 // ---------------------------------------------------------------------------
 // Public API
 // ---------------------------------------------------------------------------
@@ -876,6 +881,8 @@ export async function testProviderConnection(payload: TestProviderPayload): Prom
       return testBailianProvider(apiKey)
     case 'deepseek':
       return testDeepSeekProvider(apiKey, llmModel)
+    case 'moonshot':
+      return testMoonshotProvider(apiKey, llmModel)
     case 'siliconflow':
       return testSiliconFlowProvider(apiKey)
     default:

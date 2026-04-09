@@ -59,4 +59,13 @@ describe('api-config preset coming soon', () => {
       'wanx2.1-kf2v-plus',
     ]))
   })
+
+  it('registers Kimi K2.5 under Moonshot presets', () => {
+    const model = PRESET_MODELS.find(
+      (entry) => entry.provider === 'moonshot' && entry.modelId === 'kimi-k2.5',
+    )
+
+    expect(model).toBeDefined()
+    expect(model?.name).toBe('Kimi K2.5')
+  })
 })

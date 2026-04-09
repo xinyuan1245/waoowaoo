@@ -39,6 +39,18 @@ import { completeSiliconFlowLlm } from '@/lib/providers/siliconflow'
 
 const OFFICIAL_ONLY_PROVIDER_KEYS = new Set(['bailian', 'siliconflow'])
 
+function buildMoonshotChatParams(params: {
+  modelId: string
+  messages: OpenAI.Chat.Completions.ChatCompletionMessageParam[]
+  reasoning: boolean
+}): Record<string, unknown> {
+  return {
+    model: params.modelId,
+    messages: params.messages,
+    thinking: { type: params.reasoning ? 'enabled' : 'disabled' },
+  }
+}
+
 function toRecord(value: unknown): Record<string, unknown> | null {
   return value && typeof value === 'object' ? (value as Record<string, unknown>) : null
 }
@@ -364,8 +376,15 @@ export async function chatCompletion(
       }
 
       const isOpenRouter = !!providerConfig.baseUrl?.includes('openrouter')
-      const prefersNativeOpenAISdk = isOpenRouter || providerKey === 'deepseek'
-      const providerName = isOpenRouter ? 'openrouter' : providerKey === 'deepseek' ? 'deepseek' : 'openai_compatible'
+      const isMoonshot = providerKey === 'moonshot'
+      const prefersNativeOpenAISdk = isOpenRouter || providerKey === 'deepseek' || isMoonshot
+      const providerName = isOpenRouter
+        ? 'openrouter'
+        : providerKey === 'deepseek'
+          ? 'deepseek'
+          : isMoonshot
+            ? 'moonshot'
+            : 'openai_compatible'
       if (!prefersNativeOpenAISdk) {
         const aiOpenAI = createOpenAI({
           baseURL: providerConfig.baseUrl,
@@ -448,12 +467,22 @@ export async function chatCompletion(
         extraParams.reasoning = { effort: reasoningEffort }
       }
 
-      const completion = await client.chat.completions.create({
-        model: resolvedModelId,
-        messages: messages as OpenAI.Chat.Completions.ChatCompletionMessageParam[],
-        temperature,
-        ...extraParams,
-      })
+      const requestParams = isMoonshot
+        ? buildMoonshotChatParams({
+          modelId: resolvedModelId,
+          messages: messages as OpenAI.Chat.Completions.ChatCompletionMessageParam[],
+          reasoning,
+        })
+        : {
+          model: resolvedModelId,
+          messages: messages as OpenAI.Chat.Completions.ChatCompletionMessageParam[],
+          temperature,
+          ...extraParams,
+        }
+
+      const completion = await client.chat.completions.create(
+        requestParams as unknown as OpenAI.Chat.Completions.ChatCompletionCreateParamsNonStreaming,
+      )
       const normalizedCompletion = completion as OpenAI.Chat.Completions.ChatCompletion
       const completionParts = getCompletionParts(normalizedCompletion)
       logLlmRawOutput({

@@ -91,6 +91,34 @@ describe('provider test connection', () => {
     })
   })
 
+  it('routes moonshot provider through official openai-compatible probe', async () => {
+    fetchMock.mockImplementationOnce(async (input: unknown) => {
+      const url = String(input)
+      if (url === 'https://api.moonshot.cn/models' || url === 'https://api.moonshot.cn/v1/models') {
+        return new Response(JSON.stringify({ data: [{ id: 'kimi-k2.5' }] }), { status: 200 })
+      }
+      return new Response('not-found', { status: 404 })
+    })
+
+    const result = await testProviderConnection({
+      apiType: 'moonshot',
+      apiKey: 'ms-key',
+    })
+
+    expect(result.success).toBe(true)
+    expect(result.steps[0]).toEqual({
+      name: 'models',
+      status: 'pass',
+      message: 'Found 1 models',
+    })
+    expect(result.steps[1]).toEqual({
+      name: 'credits',
+      status: 'skip',
+      message: 'Credits endpoint not supported by this compatible provider',
+      detail: '/v1/credits 404 failed | /v1/user/info 404 failed | /v1/dashboard/billing/credit_grants 404 failed | /credits 404 failed | /user/info 404 failed | /dashboard/billing/credit_grants 404 failed',
+    })
+  })
+
   it('classifies auth failures for bailian models probe', async () => {
     fetchMock.mockImplementationOnce(async () => new Response('unauthorized', { status: 401 }))
 

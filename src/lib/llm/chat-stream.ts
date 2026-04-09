@@ -59,6 +59,20 @@ type OpenAIStreamWithFinal = AsyncIterable<unknown> & {
   finalChatCompletion?: () => Promise<OpenAI.Chat.Completions.ChatCompletion>
 }
 
+function buildMoonshotChatParams(params: {
+  modelId: string
+  messages: OpenAI.Chat.Completions.ChatCompletionMessageParam[]
+  reasoning: boolean
+  stream: boolean
+}): Record<string, unknown> {
+  return {
+    model: params.modelId,
+    messages: params.messages,
+    stream: params.stream,
+    thinking: { type: params.reasoning ? 'enabled' : 'disabled' },
+  }
+}
+
 
 
 export async function chatCompletionStream(
@@ -439,7 +453,8 @@ export async function chatCompletionStream(
       }
 
       const isOpenRouter = !!providerConfig.baseUrl?.includes('openrouter')
-      const prefersNativeOpenAISdk = isOpenRouter || providerKey === 'deepseek'
+      const isMoonshot = providerKey === 'moonshot'
+      const prefersNativeOpenAISdk = isOpenRouter || providerKey === 'deepseek' || isMoonshot
       const providerName = isOpenRouter ? 'openrouter' : provider
       const shouldUseAiSdk = !prefersNativeOpenAISdk
       if (shouldUseAiSdk) {
@@ -755,14 +770,24 @@ export async function chatCompletionStream(
 
       emitStreamStage(callbacks, streamStep, 'streaming', providerName)
       const isOpenRouterReasoning = isOpenRouter && (options.reasoning ?? true)
-      const stream = await client.chat.completions.create({
-        model: resolvedModelId,
-        messages,
-        // OpenRouter 推理模型不支持 temperature
-        ...(isOpenRouterReasoning ? {} : { temperature: options.temperature ?? 0.7 }),
-        stream: true,
-        ...extraParams,
-      } as unknown as OpenAI.Chat.Completions.ChatCompletionCreateParamsStreaming)
+      const requestParams = isMoonshot
+        ? buildMoonshotChatParams({
+          modelId: resolvedModelId,
+          messages: messages as OpenAI.Chat.Completions.ChatCompletionMessageParam[],
+          reasoning: options.reasoning ?? true,
+          stream: true,
+        })
+        : {
+          model: resolvedModelId,
+          messages,
+          // OpenRouter 推理模型不支持 temperature
+          ...(isOpenRouterReasoning ? {} : { temperature: options.temperature ?? 0.7 }),
+          stream: true,
+          ...extraParams,
+        }
+      const stream = await client.chat.completions.create(
+        requestParams as unknown as OpenAI.Chat.Completions.ChatCompletionCreateParamsStreaming,
+      )
 
       let text = ''
       let reasoning = ''

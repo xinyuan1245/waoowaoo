@@ -113,4 +113,23 @@ describe('llm test connection', () => {
       temperature: 0,
     })
   })
+
+  it('tests moonshot provider via official openai-compatible endpoint', async () => {
+    const result = await testLlmConnection({
+      provider: 'moonshot',
+      apiKey: 'ms-key',
+      model: 'kimi-k2.5',
+    })
+
+    expect(result.provider).toBe('moonshot')
+    expect(result.message).toBe('moonshot 连接成功')
+    expect(result.model).toBe('gpt-4.1-mini')
+    expect(result.answer).toBe('2')
+    expect(openAIState.create).toHaveBeenCalledWith({
+      model: 'kimi-k2.5',
+      messages: [{ role: 'user', content: '1+1等于几？只回答数字' }],
+      max_tokens: 10,
+      temperature: 0,
+    })
+  })
 })

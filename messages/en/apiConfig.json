@@ -171,6 +171,7 @@
       "fal_step1": "Go to FAL platform and create an API Key",
       "google_step1": "Go to Google AI Studio and create an API Key",
       "deepseek_step1": "Go to DeepSeek platform and create an API Key",
+      "moonshot_step1": "Open Moonshot platform, create an API key, and use kimi-k2.5",
       "minimax_step1": "Go to MiniMax platform and get an API Key",
       "vidu_step1": "Go to the Vidu platform and click 'Create API Key'",
       "openai_compatible_step1": "Enter any OpenAI-compatible service Base URL and API key",

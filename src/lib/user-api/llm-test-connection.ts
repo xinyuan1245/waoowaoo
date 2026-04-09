@@ -8,6 +8,7 @@ type SupportedProvider =
   | 'openai'
   | 'bailian'
   | 'deepseek'
+  | 'moonshot'
   | 'siliconflow'
   | 'openai-compatible'
   | 'gemini-compatible'
@@ -44,6 +45,7 @@ function normalizeProvider(payload: TestConnectionPayload): SupportedProvider {
     case 'gemini-compatible':
     case 'bailian':
     case 'deepseek':
+    case 'moonshot':
     case 'siliconflow':
     case 'custom':
       return provider
@@ -203,6 +205,14 @@ export async function testLlmConnection(payload: TestConnectionPayload): Promise
         model: requestedModel || 'deepseek-chat',
       })
       return { provider, message: 'deepseek 连接成功', ...tested }
+    }
+    case 'moonshot': {
+      const tested = await testOpenAICompatibleConnection({
+        apiKey,
+        baseURL: 'https://api.moonshot.cn/v1',
+        model: requestedModel || 'kimi-k2.5',
+      })
+      return { provider, message: 'moonshot 连接成功', ...tested }
     }
     case 'siliconflow': {
       const tested = await testSiliconFlowProbe(apiKey)

@@ -171,6 +171,7 @@
       "fal_step1": "进入 FAL 平台，创建 API Key",
       "google_step1": "进入 Google AI Studio，创建 API Key",
       "deepseek_step1": "进入 DeepSeek 平台，创建 API Key",
+      "moonshot_step1": "进入 Moonshot 开放平台，创建 API Key 并使用 kimi-k2.5",
       "minimax_step1": "进入海螺 MiniMax 平台，获取 API Key",
       "vidu_step1": "进入生数科技 Vidu 平台，点击「新建 API Key」",
       "openai_compatible_step1": "填写任意 OpenAI 协议兼容服务的 Base URL 与 API Key",

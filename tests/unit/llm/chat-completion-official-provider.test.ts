@@ -190,4 +190,34 @@ describe('llm chatCompletion official provider branch', () => {
     })
     expect(result.choices[0]?.message?.content).toBe('deepseek-ok')
   })
+
+  it('uses moonshot native sdk path with thinking params instead of temperature', async () => {
+    resolveLlmRuntimeModelMock.mockResolvedValueOnce({
+      provider: 'moonshot',
+      modelId: 'kimi-k2.5',
+      modelKey: 'moonshot::kimi-k2.5',
+    })
+    getProviderConfigMock.mockResolvedValueOnce({
+      id: 'moonshot',
+      name: 'Moonshot',
+      apiKey: 'ms-key',
+      baseUrl: 'https://api.moonshot.cn/v1',
+      gatewayRoute: 'official' as const,
+    })
+
+    const result = await chatCompletion(
+      'user-1',
+      'moonshot::kimi-k2.5',
+      [{ role: 'user', content: 'hello moonshot' }],
+      { reasoning: false, temperature: 0.1 },
+    )
+
+    expect(generateTextMock).not.toHaveBeenCalled()
+    expect(openAICompletionCreateMock).toHaveBeenCalledWith({
+      model: 'kimi-k2.5',
+      messages: [{ role: 'user', content: 'hello moonshot' }],
+      thinking: { type: 'disabled' },
+    })
+    expect(result.choices[0]?.message?.content).toBe('deepseek-ok')
+  })
 })

@@ -197,4 +197,40 @@ describe('llm chatCompletionStream official provider branch', () => {
     expect(onComplete).toHaveBeenCalledWith('deepseek-stream-ok', undefined)
     expect(completion.choices[0]?.message?.content).toBe('deepseek-stream-ok')
   })
+
+  it('uses moonshot native sdk stream path with thinking params instead of temperature', async () => {
+    resolveLlmRuntimeModelMock.mockResolvedValueOnce({
+      provider: 'moonshot',
+      modelId: 'kimi-k2.5',
+      modelKey: 'moonshot::kimi-k2.5',
+    })
+    getProviderConfigMock.mockResolvedValueOnce({
+      id: 'moonshot',
+      name: 'Moonshot',
+      apiKey: 'ms-key',
+      baseUrl: 'https://api.moonshot.cn/v1',
+      gatewayRoute: 'official' as const,
+    })
+
+    const onChunk = vi.fn()
+    const onComplete = vi.fn()
+
+    const completion = await chatCompletionStream(
+      'user-1',
+      'moonshot::kimi-k2.5',
+      [{ role: 'user', content: 'hello moonshot' }],
+      { reasoning: false, temperature: 0.1 },
+      { onChunk, onComplete },
+    )
+
+    expect(streamTextMock).not.toHaveBeenCalled()
+    expect(openAIStreamCreateMock).toHaveBeenCalledWith({
+      model: 'kimi-k2.5',
+      messages: [{ role: 'user', content: 'hello moonshot' }],
+      stream: true,
+      thinking: { type: 'disabled' },
+    })
+    expect(onComplete).toHaveBeenCalledWith('deepseek-stream-ok', undefined)
+    expect(completion.choices[0]?.message?.content).toBe('deepseek-stream-ok')
+  })
 })

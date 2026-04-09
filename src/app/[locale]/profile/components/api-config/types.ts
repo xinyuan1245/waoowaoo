@@ -115,6 +115,8 @@ export const PRESET_MODELS: PresetModel[] = [
     // DeepSeek 官方文本模型
     { modelId: 'deepseek-chat', name: 'DeepSeek Chat', type: 'llm', provider: 'deepseek' },
     { modelId: 'deepseek-reasoner', name: 'DeepSeek Reasoner', type: 'llm', provider: 'deepseek' },
+    // Moonshot 官方文本模型
+    { modelId: 'kimi-k2.5', name: 'Kimi K2.5', type: 'llm', provider: 'moonshot' },
     // MiniMax 官方文本模型
     { modelId: 'MiniMax-M2.5', name: 'MiniMax M2.5', type: 'llm', provider: 'minimax' },
     { modelId: 'MiniMax-M2.5-highspeed', name: 'MiniMax M2.5 Highspeed', type: 'llm', provider: 'minimax' },
@@ -205,6 +207,7 @@ export const PRESET_PROVIDERS: Omit<Provider, 'apiKey' | 'hasApiKey'>[] = [
     { id: 'google', name: 'Google AI Studio' },
     { id: 'bailian', name: 'Alibaba Bailian' },
     { id: 'deepseek', name: 'DeepSeek', baseUrl: 'https://api.deepseek.com' },
+    { id: 'moonshot', name: 'Moonshot', baseUrl: 'https://api.moonshot.cn/v1' },
     { id: 'openrouter', name: 'OpenRouter', baseUrl: 'https://openrouter.ai/api/v1' },
     { id: 'minimax', name: 'MiniMax Hailuo', baseUrl: 'https://api.minimaxi.com/v1' },
     { id: 'vidu', name: 'Vidu' },
@@ -217,6 +220,7 @@ const ZH_PROVIDER_NAME_MAP: Record<string, string> = {
     vidu: '生数科技 Vidu',
     bailian: '阿里云百炼',
     deepseek: '深度求索 DeepSeek',
+    moonshot: '月之暗面 Moonshot',
     siliconflow: '硅基流动',
 }
 
@@ -322,6 +326,15 @@ export const PROVIDER_TUTORIALS: ProviderTutorial[] = [
             {
                 text: 'deepseek_step1',
                 url: 'https://platform.deepseek.com/api_keys'
+            }
+        ]
+    },
+    {
+        providerId: 'moonshot',
+        steps: [
+            {
+                text: 'moonshot_step1',
+                url: 'https://platform.moonshot.cn/'
             }
         ]
     },

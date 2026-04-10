@@ -38,6 +38,12 @@ export function deriveRunStreamView(args: {
   const outputText = (() => {
     const stepOutput = getStageOutput(selectedStep)
     if (stepOutput) return stepOutput
+    // When the active/selected step has no output yet, keep showing the latest
+    // available step output so reasoning content does not appear to "disappear".
+    for (let i = orderedSteps.length - 1; i >= 0; i -= 1) {
+      const fallbackOutput = getStageOutput(orderedSteps[i] || null)
+      if (fallbackOutput) return fallbackOutput
+    }
     if (runState?.status === 'failed' && runState.errorMessage) {
       return `【错误】\n${runState.errorMessage}`
     }

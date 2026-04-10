@@ -4,7 +4,7 @@ import { createOpenAI } from '@ai-sdk/openai'
 import { GoogleGenAI } from '@google/genai'
 import {
   resolveModelGatewayRoute,
-  runOpenAICompatChatCompletion,
+  runOpenAICompatChatCompletionStream,
   runOpenAICompatResponsesCompletion,
 } from '@/lib/model-gateway'
 import {
@@ -141,31 +141,43 @@ export async function chatCompletionStream(
           messages,
           temperature,
         })
-        : await runOpenAICompatChatCompletion({
-          userId,
-          providerId: provider,
-          modelId: resolvedModelId,
-          messages,
-          temperature,
-        })
+        : await runOpenAICompatChatCompletionStream(
+          {
+            userId,
+            providerId: provider,
+            modelId: resolvedModelId,
+            messages,
+            temperature,
+          },
+          callbacks,
+          {
+            id: streamStep?.id || undefined,
+            attempt: streamStep?.attempt || undefined,
+            title: streamStep?.title || undefined,
+            index: streamStep?.index || undefined,
+            total: streamStep?.total || undefined,
+          },
+        )
       const completionParts = getCompletionParts(completion)
-      let seq = 1
-      if (completionParts.reasoning) {
-        emitStreamChunk(callbacks, streamStep, {
-          kind: 'reasoning',
-          delta: completionParts.reasoning,
-          seq,
-          lane: 'reasoning',
-        })
-        seq += 1
-      }
-      if (completionParts.text) {
-        emitStreamChunk(callbacks, streamStep, {
-          kind: 'text',
-          delta: completionParts.text,
-          seq,
-          lane: 'main',
-        })
+      if (selection.llmProtocol === 'responses') {
+        let seq = 1
+        if (completionParts.reasoning) {
+          emitStreamChunk(callbacks, streamStep, {
+            kind: 'reasoning',
+            delta: completionParts.reasoning,
+            seq,
+            lane: 'reasoning',
+          })
+          seq += 1
+        }
+        if (completionParts.text) {
+          emitStreamChunk(callbacks, streamStep, {
+            kind: 'text',
+            delta: completionParts.text,
+            seq,
+            lane: 'main',
+          })
+        }
       }
       logLlmRawOutput({
         userId,

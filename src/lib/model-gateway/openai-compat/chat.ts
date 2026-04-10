@@ -3,7 +3,7 @@ import type { ChatCompletionStreamCallbacks } from '@/lib/llm/types'
 import { buildOpenAIChatCompletion } from '@/lib/llm/providers/openai-compat'
 import { extractStreamDeltaParts } from '@/lib/llm/utils'
 import { withStreamChunkTimeout } from '@/lib/llm/stream-timeout'
-import { emitStreamChunk, emitStreamStage, resolveStreamStepMeta } from '@/lib/llm/stream-helpers'
+import { emitStreamChunk, resolveStreamStepMeta } from '@/lib/llm/stream-helpers'
 import type { OpenAICompatChatRequest } from '../types'
 import { createOpenAICompatClient, resolveOpenAICompatClientConfig } from './common'
 
@@ -24,12 +24,24 @@ type OpenAIStreamWithFinal = AsyncIterable<unknown> & {
 export async function runOpenAICompatChatCompletionStream(
   input: OpenAICompatChatRequest,
   callbacks?: ChatCompletionStreamCallbacks,
+  step?: {
+    id?: string
+    attempt?: number
+    title?: string
+    index?: number
+    total?: number
+  },
 ): Promise<OpenAI.Chat.Completions.ChatCompletion> {
   const config = await resolveOpenAICompatClientConfig(input.userId, input.providerId)
   const client = createOpenAICompatClient(config)
-  const stepMeta = resolveStreamStepMeta({})
+  const stepMeta = resolveStreamStepMeta({
+    streamStepId: step?.id,
+    streamStepAttempt: step?.attempt,
+    streamStepTitle: step?.title,
+    streamStepIndex: step?.index,
+    streamStepTotal: step?.total,
+  })
 
-  emitStreamStage(callbacks, stepMeta, 'streaming', 'openai-compat')
   const stream = await client.chat.completions.create({
     model: input.modelId,
     messages: input.messages as OpenAI.Chat.Completions.ChatCompletionMessageParam[],
@@ -81,7 +93,5 @@ export async function runOpenAICompatChatCompletionStream(
     undefined,
   )
 
-  emitStreamStage(callbacks, stepMeta, 'completed', 'openai-compat')
-  callbacks?.onComplete?.(text, stepMeta)
   return completion
 }

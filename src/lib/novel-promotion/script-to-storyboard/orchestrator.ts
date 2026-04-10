@@ -1,4 +1,4 @@
-import { safeParseJsonArray } from '@/lib/json-repair'
+import { safeParseJsonArray, safeParseJsonObject } from '@/lib/json-repair'
 import { buildCharactersIntroduction } from '@/lib/constants'
 import { normalizeAnyError } from '@/lib/errors/normalize'
 import { createScopedLogger } from '@/lib/logging/core'
@@ -57,9 +57,18 @@ type ClipInput = {
 
 export type ScriptToStoryboardPromptTemplates = {
   phase1PlanTemplate: string
+  phase1ReviewTemplate?: string
   phase2CinematographyTemplate: string
   phase2ActingTemplate: string
   phase3DetailTemplate: string
+}
+
+export type StoryboardPlanReviewResult = {
+  needsRevision: boolean
+  granularityScore: number | null
+  issueCount: number
+  reviewerNotes: string
+  revisedPanelCount: number
 }
 
 export type ClipStoryboardPanels = {
@@ -89,6 +98,7 @@ export type ScriptToStoryboardOrchestratorInput = {
 export type ScriptToStoryboardOrchestratorResult = {
   clipPanels: ClipStoryboardPanels[]
   phase1PanelsByClipId: Record<string, StoryboardPanel[]>
+  phase1ReviewByClipId: Record<string, StoryboardPlanReviewResult>
   phase2CinematographyByClipId: Record<string, PhotographyRule[]>
   phase2ActingByClipId: Record<string, ActingDirection[]>
   phase3PanelsByClipId: Record<string, StoryboardPanel[]>
@@ -115,6 +125,64 @@ function parseJsonArray<T extends JsonRecord>(responseText: string, label: strin
     throw new JsonParseError(`${label}: empty result`, responseText)
   }
   return rows as T[]
+}
+
+function asBoolean(value: unknown): boolean {
+  if (typeof value === 'boolean') return value
+  if (typeof value === 'string') {
+    const normalized = value.trim().toLowerCase()
+    return normalized === 'true' || normalized === 'yes' || normalized === '1'
+  }
+  if (typeof value === 'number') return value !== 0
+  return false
+}
+
+function parseStoryboardPlanReview(
+  responseText: string,
+  fallbackPanels: StoryboardPanel[],
+  label: string,
+): { reviewedPanels: StoryboardPanel[]; review: StoryboardPlanReviewResult } {
+  let parsed: Record<string, unknown>
+  try {
+    parsed = safeParseJsonObject(responseText)
+  } catch (error) {
+    throw new JsonParseError(
+      `${label}: ${error instanceof Error ? error.message : 'invalid review json'}`,
+      responseText,
+    )
+  }
+  const needsRevision = asBoolean(parsed.needs_revision ?? parsed.needsRevision)
+  const granularityScore = typeof parsed.granularity_score === 'number' && Number.isFinite(parsed.granularity_score)
+    ? Math.max(0, Math.min(10, parsed.granularity_score))
+    : null
+  const issues = Array.isArray(parsed.issues)
+    ? parsed.issues.map((item) => (typeof item === 'string' ? item.trim() : '')).filter(Boolean)
+    : []
+  const reviewerNotes = typeof parsed.reviewer_notes === 'string' ? parsed.reviewer_notes.trim() : ''
+
+  let reviewedPanels = fallbackPanels
+  if (needsRevision && Array.isArray(parsed.revised_panels)) {
+    const revisedPanels = (parsed.revised_panels as unknown[])
+      .filter((item): item is StoryboardPanel => typeof item === 'object' && item !== null) as StoryboardPanel[]
+    if (revisedPanels.length > 0) {
+      reviewedPanels = revisedPanels
+    }
+  }
+
+  if (!Array.isArray(reviewedPanels) || reviewedPanels.length === 0) {
+    throw new JsonParseError(`${label}: review produced empty panels`, responseText)
+  }
+
+  return {
+    reviewedPanels,
+    review: {
+      needsRevision,
+      granularityScore,
+      issueCount: issues.length,
+      reviewerNotes,
+      revisedPanelCount: reviewedPanels.length,
+    },
+  }
 }
 
 
@@ -294,12 +362,14 @@ export async function runScriptToStoryboardOrchestrator(
     DEFAULT_ANALYSIS_WORKFLOW_CONCURRENCY,
   )
 
-  const totalStepCount = clips.length * 4 + 2
+  const hasPhase1Review = !!(promptTemplates.phase1ReviewTemplate && promptTemplates.phase1ReviewTemplate.trim())
+  const totalStepCount = clips.length * (hasPhase1Review ? 5 : 4) + 2
   const charactersLibName = (novelPromotionData.characters || []).map((c) => c.name).join(', ') || '无'
   const locationsLibName = (novelPromotionData.locations || []).map((l) => l.name).join(', ') || '无'
   const charactersIntroduction = buildCharactersIntroduction(novelPromotionData.characters || [])
 
   const phase1PanelsByClipId = new Map<string, StoryboardPanel[]>()
+  const phase1ReviewByClipId = new Map<string, StoryboardPlanReviewResult>()
   const phase2CinematographyByClipId = new Map<string, PhotographyRule[]>()
   const phase2ActingByClipId = new Map<string, ActingDirection[]>()
   const phase3PanelsByClipId = new Map<string, StoryboardPanel[]>()
@@ -380,15 +450,43 @@ export async function runScriptToStoryboardOrchestrator(
           return panels
         },
       )
-      phase1PanelsByClipId.set(clip.id, planPanels)
+      let reviewedPlanPanels = planPanels
+      if (hasPhase1Review && promptTemplates.phase1ReviewTemplate) {
+        const clipContentForReview = screenplay
+          ? `【剧本格式】\n${JSON.stringify(screenplay, null, 2)}`
+          : clipContent
+        const phase1ReviewPrompt = promptTemplates.phase1ReviewTemplate
+          .replace('{clip_json}', clipJson)
+          .replace('{clip_content}', clipContentForReview)
+          .replace('{plan_panels_json}', JSON.stringify(planPanels, null, 2))
+        const phase1ReviewMeta = withStepMeta(
+          `clip_${clip.id}_phase1_review`,
+          'progress.streamStep.storyboardPlanReview',
+          clips.length + clipIndex,
+          totalStepCount,
+          {
+            dependsOn: [`clip_${clip.id}_phase1`],
+            groupId: `clip_${clip.id}`,
+            parallelKey: 'phase1_review',
+            retryable: true,
+          },
+        )
+        const { parsed: phase1ReviewResult } = await runStepWithRetry(
+          runStep, phase1ReviewMeta, phase1ReviewPrompt, 'storyboard_phase1_review', 2800,
+          (text) => parseStoryboardPlanReview(text, planPanels, `phase1-review:${formatClipId(clip)}`),
+        )
+        reviewedPlanPanels = phase1ReviewResult.reviewedPanels
+        phase1ReviewByClipId.set(clip.id, phase1ReviewResult.review)
+      }
+      phase1PanelsByClipId.set(clip.id, reviewedPlanPanels)
 
       const phase2Meta = withStepMeta(
         `clip_${clip.id}_phase2_cinematography`,
         'progress.streamStep.cinematographyRules',
-        clips.length + index * 3 + 1,
+        clips.length * (hasPhase1Review ? 2 : 1) + index * 3 + 1,
         totalStepCount,
         {
-          dependsOn: [`clip_${clip.id}_phase1`],
+          dependsOn: [hasPhase1Review ? `clip_${clip.id}_phase1_review` : `clip_${clip.id}_phase1`],
           groupId: `clip_${clip.id}`,
           parallelKey: 'phase2',
           retryable: true,
@@ -397,10 +495,10 @@ export async function runScriptToStoryboardOrchestrator(
       const phase2ActingMeta = withStepMeta(
         `clip_${clip.id}_phase2_acting`,
         'progress.streamStep.actingDirection',
-        clips.length + index * 3 + 2,
+        clips.length * (hasPhase1Review ? 2 : 1) + index * 3 + 2,
         totalStepCount,
         {
-          dependsOn: [`clip_${clip.id}_phase1`],
+          dependsOn: [hasPhase1Review ? `clip_${clip.id}_phase1_review` : `clip_${clip.id}_phase1`],
           groupId: `clip_${clip.id}`,
           parallelKey: 'phase2',
           retryable: true,
@@ -409,7 +507,7 @@ export async function runScriptToStoryboardOrchestrator(
       const phase3Meta = withStepMeta(
         `clip_${clip.id}_phase3_detail`,
         'progress.streamStep.storyboardDetailRefine',
-        clips.length + index * 3 + 3,
+        clips.length * (hasPhase1Review ? 2 : 1) + index * 3 + 3,
         totalStepCount,
         {
           dependsOn: [
@@ -423,19 +521,19 @@ export async function runScriptToStoryboardOrchestrator(
       )
 
       const phase2Prompt = promptTemplates.phase2CinematographyTemplate
-        .replace('{panels_json}', JSON.stringify(planPanels, null, 2))
-        .replace(/\{panel_count\}/g, String(planPanels.length))
+        .replace('{panels_json}', JSON.stringify(reviewedPlanPanels, null, 2))
+        .replace(/\{panel_count\}/g, String(reviewedPlanPanels.length))
         .replace('{locations_description}', filteredLocationsDescription)
         .replace('{characters_info}', filteredFullDescription)
         .replace('{props_description}', filteredPropsDescription)
 
       const phase2ActingPrompt = promptTemplates.phase2ActingTemplate
-        .replace('{panels_json}', JSON.stringify(planPanels, null, 2))
-        .replace(/\{panel_count\}/g, String(planPanels.length))
+        .replace('{panels_json}', JSON.stringify(reviewedPlanPanels, null, 2))
+        .replace(/\{panel_count\}/g, String(reviewedPlanPanels.length))
         .replace('{characters_info}', filteredFullDescription)
 
       const phase3Prompt = promptTemplates.phase3DetailTemplate
-        .replace('{panels_json}', JSON.stringify(planPanels, null, 2))
+        .replace('{panels_json}', JSON.stringify(reviewedPlanPanels, null, 2))
         .replace('{characters_age_gender}', filteredFullDescription)
         .replace('{locations_description}', filteredLocationsDescription)
         .replace('{props_description}', filteredPropsDescription)
@@ -496,6 +594,7 @@ export async function runScriptToStoryboardOrchestrator(
   return {
     clipPanels,
     phase1PanelsByClipId: mapToRecord(phase1PanelsByClipId),
+    phase1ReviewByClipId: mapToRecord(phase1ReviewByClipId),
     phase2CinematographyByClipId: mapToRecord(phase2CinematographyByClipId),
     phase2ActingByClipId: mapToRecord(phase2ActingByClipId),
     phase3PanelsByClipId: mapToRecord(phase3PanelsByClipId),

@@ -36,6 +36,7 @@ import {
   parseStoryboardRetryTarget,
   runScriptToStoryboardAtomicRetry,
 } from './script-to-storyboard-atomic-retry'
+import { composeModelKey, parseModelKeyStrict } from '@/lib/model-config-contract'
 
 type AnyObj = Record<string, unknown>
 const MAX_VOICE_ANALYZE_ATTEMPTS = 2
@@ -57,12 +58,22 @@ function isReasoningEffort(value: unknown): value is 'minimal' | 'low' | 'medium
   return value === 'minimal' || value === 'low' || value === 'medium' || value === 'high'
 }
 
+function normalizeModelKey(value: unknown): string | null {
+  if (typeof value !== 'string') return null
+  const trimmed = value.trim()
+  if (!trimmed) return null
+  const parsed = parseModelKeyStrict(trimmed)
+  if (!parsed) return null
+  return composeModelKey(parsed.provider, parsed.modelId)
+}
+
 export async function handleScriptToStoryboardTask(job: Job<TaskJobData>) {
   const payload = (job.data.payload || {}) as AnyObj
   const projectId = job.data.projectId
   const episodeIdRaw = typeof payload.episodeId === 'string' ? payload.episodeId : (job.data.episodeId || '')
   const episodeId = episodeIdRaw.trim()
   const inputModel = typeof payload.model === 'string' ? payload.model.trim() : ''
+  const inputReviewModel = typeof payload.reviewModel === 'string' ? payload.reviewModel.trim() : ''
   const retryStepKey = typeof payload.retryStepKey === 'string' ? payload.retryStepKey.trim() : ''
   const retryStepAttempt = typeof payload.retryStepAttempt === 'number' && Number.isFinite(payload.retryStepAttempt)
     ? Math.max(1, Math.floor(payload.retryStepAttempt))
@@ -131,20 +142,38 @@ export async function handleScriptToStoryboardTask(job: Job<TaskJobData>) {
     inputModel,
     projectAnalysisModel: novelData.analysisModel,
   })
-  const [llmCapabilityOptions, workflowConcurrency] = await Promise.all([
+  const normalizedReviewModel = normalizeModelKey(inputReviewModel)
+  if (inputReviewModel && !normalizedReviewModel) {
+    throw new Error('reviewModel is invalid')
+  }
+  const reviewModel = normalizedReviewModel && normalizedReviewModel !== model ? normalizedReviewModel : null
+
+  const [llmCapabilityOptions, reviewLlmCapabilityOptions, workflowConcurrency] = await Promise.all([
     resolveProjectModelCapabilityGenerationOptions({
       projectId,
       userId: job.data.userId,
       modelType: 'llm',
       modelKey: model,
     }),
+    reviewModel
+      ? resolveProjectModelCapabilityGenerationOptions({
+        projectId,
+        userId: job.data.userId,
+        modelType: 'llm',
+        modelKey: reviewModel,
+      })
+      : Promise.resolve(null),
     getUserWorkflowConcurrencyConfig(job.data.userId),
   ])
   const capabilityReasoningEffort = llmCapabilityOptions.reasoningEffort
   const reasoningEffort = requestedReasoningEffort
     || (isReasoningEffort(capabilityReasoningEffort) ? capabilityReasoningEffort : 'high')
+  const reviewCapabilityReasoningEffort = reviewLlmCapabilityOptions?.reasoningEffort
+  const reviewReasoningEffort = requestedReasoningEffort
+    || (isReasoningEffort(reviewCapabilityReasoningEffort) ? reviewCapabilityReasoningEffort : reasoningEffort)
 
   const phase1PlanTemplate = getPromptTemplate(PROMPT_IDS.NP_AGENT_STORYBOARD_PLAN, job.data.locale)
+  const phase1ReviewTemplate = getPromptTemplate(PROMPT_IDS.NP_AGENT_STORYBOARD_PLAN_REVIEW, job.data.locale)
   const phase2CinematographyTemplate = getPromptTemplate(PROMPT_IDS.NP_AGENT_CINEMATOGRAPHER, job.data.locale)
   const phase2ActingTemplate = getPromptTemplate(PROMPT_IDS.NP_AGENT_ACTING_DIRECTION, job.data.locale)
   const phase3DetailTemplate = getPromptTemplate(PROMPT_IDS.NP_AGENT_STORYBOARD_DETAIL, job.data.locale)
@@ -211,15 +240,20 @@ export async function handleScriptToStoryboardTask(job: Job<TaskJobData>) {
       blockedBy: Array.isArray(meta.blockedBy) ? meta.blockedBy : [],
     })
 
+    const stepModel = action === 'storyboard_phase1_review' && reviewModel ? reviewModel : model
+    const stepReasoningEffort = action === 'storyboard_phase1_review' && reviewModel
+      ? reviewReasoningEffort
+      : reasoningEffort
+
     logAIAnalysis(job.data.userId, 'worker', projectId, project.name, {
       action: `SCRIPT_TO_STORYBOARD_PROMPT:${action}`,
       input: { stepId: meta.stepId, stepTitle: meta.stepTitle, prompt },
-      model,
+      model: stepModel,
     })
 
     const output = await executeAiTextStep({
       userId: job.data.userId,
-      model,
+      model: stepModel,
       messages: [{ role: 'user', content: prompt }],
       projectId,
       action,
@@ -229,7 +263,7 @@ export async function handleScriptToStoryboardTask(job: Job<TaskJobData>) {
       },
       temperature,
       reasoning,
-      reasoningEffort,
+      reasoningEffort: stepReasoningEffort,
     })
     await callbacks.flush()
 
@@ -242,7 +276,7 @@ export async function handleScriptToStoryboardTask(job: Job<TaskJobData>) {
         textLength: output.text.length,
         reasoningLength: output.reasoning.length,
       },
-      model,
+      model: stepModel,
     })
 
     return {
@@ -297,6 +331,7 @@ export async function handleScriptToStoryboardTask(job: Job<TaskJobData>) {
                   },
                   promptTemplates: {
                     phase1PlanTemplate,
+                    phase1ReviewTemplate,
                     phase2CinematographyTemplate,
                     phase2ActingTemplate,
                     phase3DetailTemplate,
@@ -306,6 +341,7 @@ export async function handleScriptToStoryboardTask(job: Job<TaskJobData>) {
                 return {
                   clipPanels: atomicResult.clipPanels,
                   phase1PanelsByClipId: atomicResult.phase1PanelsByClipId,
+                  phase1ReviewByClipId: atomicResult.phase1ReviewByClipId,
                   phase2CinematographyByClipId: atomicResult.phase2CinematographyByClipId,
                   phase2ActingByClipId: atomicResult.phase2ActingByClipId,
                   phase3PanelsByClipId: atomicResult.phase3PanelsByClipId,
@@ -338,6 +374,7 @@ export async function handleScriptToStoryboardTask(job: Job<TaskJobData>) {
                   },
                   promptTemplates: {
                     phase1PlanTemplate,
+                    phase1ReviewTemplate,
                     phase2CinematographyTemplate,
                     phase2ActingTemplate,
                     phase3DetailTemplate,
@@ -366,6 +403,7 @@ export async function handleScriptToStoryboardTask(job: Job<TaskJobData>) {
       })()
 
       const phase1Map = orchestratorResult.phase1PanelsByClipId || {}
+      const phase1ReviewMap = orchestratorResult.phase1ReviewByClipId || {}
       const phase2CinematographyMap = orchestratorResult.phase2CinematographyByClipId || {}
       const phase2ActingMap = orchestratorResult.phase2ActingByClipId || {}
       const phase3Map = orchestratorResult.phase3PanelsByClipId || {}
@@ -380,6 +418,19 @@ export async function handleScriptToStoryboardTask(job: Job<TaskJobData>) {
             refId: clip.id,
             payload: {
               panels: phase1Panels,
+            },
+          })
+        }
+        const phase1Review = phase1ReviewMap[clip.id]
+        if (phase1Review) {
+          await createArtifact({
+            runId,
+            stepKey: `clip_${clip.id}_phase1_review`,
+            artifactType: 'storyboard.clip.phase1.review',
+            refId: clip.id,
+            payload: {
+              review: phase1Review,
+              reviewModel,
             },
           })
         }

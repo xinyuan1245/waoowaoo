@@ -1,7 +1,8 @@
-import { safeParseJsonArray } from '@/lib/json-repair'
+import { safeParseJsonArray, safeParseJsonObject } from '@/lib/json-repair'
 import { buildCharactersIntroduction } from '@/lib/constants'
 import { normalizeAnyError } from '@/lib/errors/normalize'
 import type {
+  StoryboardPlanReviewResult,
   ScriptToStoryboardPromptTemplates,
   ScriptToStoryboardStepMeta,
   ScriptToStoryboardStepOutput,
@@ -35,7 +36,7 @@ type StoryboardClipInput = {
   screenplay: string | null
 }
 
-export type StoryboardRetryPhase = 'phase1' | 'phase2_cinematography' | 'phase2_acting' | 'phase3_detail'
+export type StoryboardRetryPhase = 'phase1' | 'phase1_review' | 'phase2_cinematography' | 'phase2_acting' | 'phase3_detail'
 
 export type StoryboardRetryTarget = {
   stepKey: string
@@ -46,6 +47,7 @@ export type StoryboardRetryTarget = {
 export type ScriptToStoryboardAtomicRetryResult = {
   clipPanels: ClipPanelsResult[]
   phase1PanelsByClipId: Record<string, StoryboardPanel[]>
+  phase1ReviewByClipId: Record<string, StoryboardPlanReviewResult>
   phase2CinematographyByClipId: Record<string, PhotographyRule[]>
   phase2ActingByClipId: Record<string, ActingDirection[]>
   phase3PanelsByClipId: Record<string, StoryboardPanel[]>
@@ -138,6 +140,14 @@ function extractArtifactRows<T extends JsonRecord>(payload: unknown, key: string
   return asObjectArray(record[key]) as T[]
 }
 
+function extractArtifactRecord<T extends JsonRecord>(payload: unknown, key: string): T | null {
+  const record = asObject(payload)
+  if (!record) return null
+  const value = record[key]
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return null
+  return value as T
+}
+
 async function readArtifactRows<T extends JsonRecord>(params: {
   runId: string
   clipId: string
@@ -155,30 +165,52 @@ async function readArtifactRows<T extends JsonRecord>(params: {
   return extractArtifactRows<T>(artifact.payload, params.key)
 }
 
+async function readArtifactRecord<T extends JsonRecord>(params: {
+  runId: string
+  clipId: string
+  artifactType: string
+  key: string
+}) {
+  const rows = await listArtifacts({
+    runId: params.runId,
+    artifactType: params.artifactType,
+    refId: params.clipId,
+    limit: 1,
+  })
+  const artifact = rows[0]
+  if (!artifact) return null
+  return extractArtifactRecord<T>(artifact.payload, params.key)
+}
+
 function getStepNumbers(params: {
   phase: StoryboardRetryPhase
   clipIndex: number
   totalClipCount: number
+  hasPhase1Review: boolean
 }) {
   const zeroBasedClipIndex = params.clipIndex
-  const totalStepCount = params.totalClipCount * 4 + 2
+  const totalStepCount = params.totalClipCount * (params.hasPhase1Review ? 5 : 4) + 2
   if (params.phase === 'phase1') {
     return { stepIndex: zeroBasedClipIndex + 1, stepTotal: totalStepCount }
   }
+  if (params.phase === 'phase1_review') {
+    return { stepIndex: params.totalClipCount + zeroBasedClipIndex + 1, stepTotal: totalStepCount }
+  }
+  const phase2StartOffset = params.totalClipCount * (params.hasPhase1Review ? 2 : 1)
   if (params.phase === 'phase2_cinematography') {
     return {
-      stepIndex: params.totalClipCount + zeroBasedClipIndex * 3 + 1,
+      stepIndex: phase2StartOffset + zeroBasedClipIndex * 3 + 1,
       stepTotal: totalStepCount,
     }
   }
   if (params.phase === 'phase2_acting') {
     return {
-      stepIndex: params.totalClipCount + zeroBasedClipIndex * 3 + 2,
+      stepIndex: phase2StartOffset + zeroBasedClipIndex * 3 + 2,
       stepTotal: totalStepCount,
     }
   }
   return {
-    stepIndex: params.totalClipCount + zeroBasedClipIndex * 3 + 3,
+    stepIndex: phase2StartOffset + zeroBasedClipIndex * 3 + 3,
     stepTotal: totalStepCount,
   }
 }
@@ -187,11 +219,13 @@ function buildStepMeta(params: {
   target: StoryboardRetryTarget
   clipIndex: number
   totalClipCount: number
+  hasPhase1Review: boolean
 }): ScriptToStoryboardStepMeta {
   const stepNumbers = getStepNumbers({
     phase: params.target.phase,
     clipIndex: params.clipIndex,
     totalClipCount: params.totalClipCount,
+    hasPhase1Review: params.hasPhase1Review,
   })
   const stepKey = params.target.stepKey
   const groupId = `clip_${params.target.clipId}`
@@ -207,13 +241,25 @@ function buildStepMeta(params: {
       retryable: true,
     }
   }
+  if (params.target.phase === 'phase1_review') {
+    return {
+      stepId: stepKey,
+      stepTitle: 'progress.streamStep.storyboardPlanReview',
+      stepIndex: stepNumbers.stepIndex,
+      stepTotal: stepNumbers.stepTotal,
+      dependsOn: [`clip_${params.target.clipId}_phase1`],
+      groupId,
+      parallelKey: 'phase1_review',
+      retryable: true,
+    }
+  }
   if (params.target.phase === 'phase2_cinematography') {
     return {
       stepId: stepKey,
       stepTitle: 'progress.streamStep.cinematographyRules',
       stepIndex: stepNumbers.stepIndex,
       stepTotal: stepNumbers.stepTotal,
-      dependsOn: [`clip_${params.target.clipId}_phase1`],
+      dependsOn: [params.hasPhase1Review ? `clip_${params.target.clipId}_phase1_review` : `clip_${params.target.clipId}_phase1`],
       groupId,
       parallelKey: 'phase2',
       retryable: true,
@@ -225,7 +271,7 @@ function buildStepMeta(params: {
       stepTitle: 'progress.streamStep.actingDirection',
       stepIndex: stepNumbers.stepIndex,
       stepTotal: stepNumbers.stepTotal,
-      dependsOn: [`clip_${params.target.clipId}_phase1`],
+      dependsOn: [params.hasPhase1Review ? `clip_${params.target.clipId}_phase1_review` : `clip_${params.target.clipId}_phase1`],
       groupId,
       parallelKey: 'phase2',
       retryable: true,
@@ -318,7 +364,7 @@ function requireRows<T extends JsonRecord>(rows: T[], label: string) {
 export function parseStoryboardRetryTarget(stepKey: string): StoryboardRetryTarget | null {
   const trimmed = stepKey.trim()
   if (!trimmed) return null
-  const match = /^clip_(.+)_(phase1|phase2_cinematography|phase2_acting|phase3_detail)$/.exec(trimmed)
+  const match = /^clip_(.+)_(phase1|phase1_review|phase2_cinematography|phase2_acting|phase3_detail)$/.exec(trimmed)
   if (!match) return null
   const clipId = (match[1] || '').trim()
   const phase = match[2] as StoryboardRetryPhase
@@ -346,6 +392,7 @@ export async function runScriptToStoryboardAtomicRetry(params: {
   promptTemplates: ScriptToStoryboardPromptTemplates
   runStep: StepRunner
 }): Promise<ScriptToStoryboardAtomicRetryResult> {
+  const hasPhase1Review = !!(params.promptTemplates.phase1ReviewTemplate && params.promptTemplates.phase1ReviewTemplate.trim())
   const clipCharacters = parseClipCharacters(params.clip.characters)
   const clipLocation = params.clip.location || null
   const clipProps = parseClipProps(params.clip.props ?? null)
@@ -367,9 +414,11 @@ export async function runScriptToStoryboardAtomicRetry(params: {
     target: params.retryTarget,
     clipIndex: params.clipIndex,
     totalClipCount: params.totalClipCount,
+    hasPhase1Review,
   })
 
   const phase1PanelsByClipId: Record<string, StoryboardPanel[]> = {}
+  const phase1ReviewByClipId: Record<string, StoryboardPlanReviewResult> = {}
   const phase2CinematographyByClipId: Record<string, PhotographyRule[]> = {}
   const phase2ActingByClipId: Record<string, ActingDirection[]> = {}
   const phase3PanelsByClipId: Record<string, StoryboardPanel[]> = {}
@@ -380,6 +429,12 @@ export async function runScriptToStoryboardAtomicRetry(params: {
     clipId: params.retryTarget.clipId,
     artifactType: 'storyboard.clip.phase1',
     key: 'panels',
+  })
+  let phase1Review = await readArtifactRecord<StoryboardPlanReviewResult>({
+    runId: params.runId,
+    clipId: params.retryTarget.clipId,
+    artifactType: 'storyboard.clip.phase1.review',
+    key: 'review',
   })
   let phase2Cinematography = await readArtifactRows<PhotographyRule>({
     runId: params.runId,
@@ -450,6 +505,71 @@ export async function runScriptToStoryboardAtomicRetry(params: {
       retryStepAttempt: params.retryStepAttempt,
     })
     phase1PanelsByClipId[params.clip.id] = phase1Panels
+  } else if (params.retryTarget.phase === 'phase1_review') {
+    if (!params.promptTemplates.phase1ReviewTemplate) {
+      throw new Error('phase1 review template is missing')
+    }
+    const planPanels = requireRows(phase1Panels, 'storyboard.clip.phase1')
+    const clipContent = typeof params.clip.content === 'string' ? params.clip.content.trim() : ''
+    if (!clipContent) {
+      throw new Error(`Clip ${formatClipId(params.clip)} content is empty`)
+    }
+    const clipJson = JSON.stringify(
+      {
+        id: params.clip.id,
+        content: clipContent,
+        characters: clipCharacters,
+        location: clipLocation,
+        props: clipProps,
+      },
+      null,
+      2,
+    )
+    const screenplay = parseScreenplay(params.clip.screenplay)
+    const clipContentForReview = screenplay
+      ? `【剧本格式】\n${JSON.stringify(screenplay, null, 2)}`
+      : clipContent
+    const phase1ReviewPrompt = params.promptTemplates.phase1ReviewTemplate
+      .replace('{clip_json}', clipJson)
+      .replace('{clip_content}', clipContentForReview)
+      .replace('{plan_panels_json}', JSON.stringify(planPanels, null, 2))
+    const parsed = await runStepWithRetry({
+      runStep: params.runStep,
+      baseMeta,
+      prompt: phase1ReviewPrompt,
+      action: 'storyboard_phase1_review',
+      maxOutputTokens: 2800,
+      parse: (text) => {
+        const raw = safeParseJsonObject(text)
+        const needsRevision = raw.needsRevision === true || raw.needs_revision === true
+        const granularityScore = typeof raw.granularity_score === 'number' && Number.isFinite(raw.granularity_score)
+          ? Math.max(0, Math.min(10, raw.granularity_score))
+          : null
+        const issues = Array.isArray(raw.issues)
+          ? raw.issues.map((item) => (typeof item === 'string' ? item.trim() : '')).filter(Boolean)
+          : []
+        const reviewerNotes = typeof raw.reviewer_notes === 'string' ? raw.reviewer_notes.trim() : ''
+        const revisedPanels = needsRevision && Array.isArray(raw.revised_panels)
+          ? (raw.revised_panels as unknown[]).filter((item): item is StoryboardPanel => typeof item === 'object' && item !== null)
+          : []
+        const reviewedPanels = revisedPanels.length > 0 ? revisedPanels : planPanels
+        return {
+          reviewedPanels,
+          review: {
+            needsRevision,
+            granularityScore,
+            issueCount: issues.length,
+            reviewerNotes,
+            revisedPanelCount: reviewedPanels.length,
+          },
+        }
+      },
+      retryStepAttempt: params.retryStepAttempt,
+    })
+    phase1Panels = parsed.reviewedPanels
+    phase1Review = parsed.review
+    phase1PanelsByClipId[params.clip.id] = phase1Panels
+    phase1ReviewByClipId[params.clip.id] = phase1Review
   } else if (params.retryTarget.phase === 'phase2_cinematography') {
     const planPanels = requireRows(phase1Panels, 'storyboard.clip.phase1')
     const phase2Prompt = params.promptTemplates.phase2CinematographyTemplate
@@ -512,7 +632,7 @@ export async function runScriptToStoryboardAtomicRetry(params: {
     phase3PanelsByClipId[params.clip.id] = phase3Panels
   }
 
-  if (params.retryTarget.phase !== 'phase1') {
+  if (params.retryTarget.phase !== 'phase1' && params.retryTarget.phase !== 'phase1_review') {
     const finalPanels = mergePanelsWithRules({
       finalPanels: requireRows(phase3Panels, 'storyboard.clip.phase3'),
       photographyRules: requireRows(phase2Cinematography, 'storyboard.clip.phase2.cine'),
@@ -529,10 +649,11 @@ export async function runScriptToStoryboardAtomicRetry(params: {
   return {
     clipPanels,
     phase1PanelsByClipId,
+    phase1ReviewByClipId,
     phase2CinematographyByClipId,
     phase2ActingByClipId,
     phase3PanelsByClipId,
     totalPanelCount,
-    totalStepCount: params.totalClipCount * 4 + 2,
+    totalStepCount: params.totalClipCount * (hasPhase1Review ? 5 : 4) + 2,
   }
 }

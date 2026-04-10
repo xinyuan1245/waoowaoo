@@ -81,6 +81,10 @@ export const PROMPT_CATALOG: Record<PromptId, PromptCatalogEntry> = {
       'clip_content',
     ],
   },
+  [PROMPT_IDS.NP_AGENT_STORYBOARD_PLAN_REVIEW]: {
+    pathStem: 'novel-promotion/agent_storyboard_plan_review',
+    variableKeys: ['clip_json', 'clip_content', 'plan_panels_json'],
+  },
   [PROMPT_IDS.NP_AI_STORY_EXPAND]: {
     pathStem: 'novel-promotion/ai_story_expand',
     variableKeys: ['input'],

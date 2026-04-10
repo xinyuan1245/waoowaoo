@@ -134,6 +134,7 @@
     "splitClips": "片段切分",
     "screenplayConversion": "剧本转换",
     "storyboardPlan": "分镜规划",
+    "storyboardPlanReview": "分镜规划评估",
     "cinematographyRules": "摄影规则生成",
     "actingDirection": "演技指导生成",
     "storyboardDetailRefine": "分镜细节补全",

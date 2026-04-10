@@ -11,6 +11,7 @@ export const PROMPT_IDS = {
   NP_AGENT_STORYBOARD_DETAIL: 'np_agent_storyboard_detail',
   NP_AGENT_STORYBOARD_INSERT: 'np_agent_storyboard_insert',
   NP_AGENT_STORYBOARD_PLAN: 'np_agent_storyboard_plan',
+  NP_AGENT_STORYBOARD_PLAN_REVIEW: 'np_agent_storyboard_plan_review',
   NP_AI_STORY_EXPAND: 'np_ai_story_expand',
   NP_CHARACTER_CREATE: 'np_character_create',
   NP_CHARACTER_DESCRIPTION_UPDATE: 'np_character_description_update',

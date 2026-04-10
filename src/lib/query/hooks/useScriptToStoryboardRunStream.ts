@@ -8,6 +8,7 @@ import { selectRecoverableRun } from '@/lib/run-runtime/recovery'
 export type ScriptToStoryboardRunParams = {
   episodeId: string
   model?: string
+  reviewModel?: string
   temperature?: number
   reasoning?: boolean
   reasoningEffort?: 'minimal' | 'low' | 'medium' | 'high'
@@ -76,6 +77,7 @@ export function useScriptToStoryboardRunStream({ projectId, episodeId }: UseScri
     buildRequestBody: (params) => ({
       episodeId: params.episodeId,
       model: params.model || undefined,
+      reviewModel: params.reviewModel || undefined,
       temperature: params.temperature,
       reasoning: params.reasoning,
       reasoningEffort: params.reasoningEffort,

@@ -247,6 +247,7 @@ model NovelPromotionProject {
   createdAt       DateTime                  @default(now())
   updatedAt       DateTime                  @default(now()) @updatedAt
   analysisModel   String? // 用户配置的分析模型（nullable，必须配置后才能使用）
+  reviewModel     String? // 用户配置的分镜脚本评审模型
   imageModel      String? // 用户配置的图片模型
   videoModel      String? // 用户配置的视频模型
   audioModel      String? // 用户配置的语音模型

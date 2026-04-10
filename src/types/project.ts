@@ -244,6 +244,7 @@ export interface NovelPromotionProject {
   globalAssetText: string | null
   novelText: string | null
   analysisModel: string
+  reviewModel: string
   imageModel: string
   characterModel: string
   locationModel: string

@@ -42,6 +42,7 @@ interface WorkspaceHeaderShellProps {
   modelsLoaded: boolean
   artStyle: string | null | undefined
   analysisModel: string | null | undefined
+  reviewModel: string | null | undefined
   characterModel: string | null | undefined
   locationModel: string | null | undefined
   storyboardModel: string | null | undefined
@@ -89,6 +90,7 @@ export default function WorkspaceHeaderShell({
   modelsLoaded,
   artStyle,
   analysisModel,
+  reviewModel,
   characterModel,
   locationModel,
   storyboardModel,
@@ -128,6 +130,7 @@ export default function WorkspaceHeaderShell({
         modelsLoaded={modelsLoaded}
         artStyle={artStyle ?? undefined}
         analysisModel={analysisModel ?? undefined}
+        reviewModel={reviewModel ?? undefined}
         characterModel={characterModel ?? undefined}
         locationModel={locationModel ?? undefined}
         imageModel={storyboardModel ?? undefined}
@@ -139,6 +142,7 @@ export default function WorkspaceHeaderShell({
         ttsRate={ttsRate ?? undefined}
         onArtStyleChange={(value) => { onUpdateConfig('artStyle', value) }}
         onAnalysisModelChange={(value) => { onUpdateConfig('analysisModel', value) }}
+        onReviewModelChange={(value) => { onUpdateConfig('reviewModel', value) }}
         onCharacterModelChange={(value) => { onUpdateConfig('characterModel', value) }}
         onLocationModelChange={(value) => { onUpdateConfig('locationModel', value) }}
         onImageModelChange={(value) => { onUpdateConfig('storyboardModel', value) }}

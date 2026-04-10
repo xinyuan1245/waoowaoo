@@ -17,6 +17,7 @@ import {
 
 const MODEL_FIELDS = [
   'analysisModel',
+  'reviewModel',
   'characterModel',
   'locationModel',
   'storyboardModel',
@@ -27,6 +28,7 @@ const MODEL_FIELDS = [
 
 const MODEL_FIELD_TO_TYPE: Record<typeof MODEL_FIELDS[number], UnifiedModelType> = {
   analysisModel: 'llm',
+  reviewModel: 'llm',
   characterModel: 'image',
   locationModel: 'image',
   storyboardModel: 'image',
@@ -135,6 +137,7 @@ function validateArtStyleField(value: unknown): string {
 function getNextProjectModelMap(
   current: {
     analysisModel: string | null
+    reviewModel: string | null
     characterModel: string | null
     locationModel: string | null
     storyboardModel: string | null
@@ -236,6 +239,7 @@ export const GET = apiHandler(async (
     select: {
       capabilityOverrides: true,
       analysisModel: true,
+      reviewModel: true,
       characterModel: true,
       locationModel: true,
       storyboardModel: true,
@@ -248,6 +252,7 @@ export const GET = apiHandler(async (
   const modelContextMap = projectData
     ? getNextProjectModelMap({
       analysisModel: projectData.analysisModel,
+      reviewModel: projectData.reviewModel,
       characterModel: projectData.characterModel,
       locationModel: projectData.locationModel,
       storyboardModel: projectData.storyboardModel,
@@ -280,6 +285,7 @@ export const PATCH = apiHandler(async (
     where: { projectId },
     select: {
       analysisModel: true,
+      reviewModel: true,
       characterModel: true,
       locationModel: true,
       storyboardModel: true,
@@ -292,7 +298,7 @@ export const PATCH = apiHandler(async (
   }
 
   const allowedProjectFields = [
-    'analysisModel', 'characterModel', 'locationModel', 'storyboardModel',
+    'analysisModel', 'reviewModel', 'characterModel', 'locationModel', 'storyboardModel',
     'editModel', 'videoModel', 'audioModel', 'videoRatio', 'artStyle',
     'ttsRate', 'lipSyncEnabled', 'lipSyncMode', 'capabilityOverrides',
   ] as const

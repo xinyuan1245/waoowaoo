@@ -44,6 +44,7 @@ interface SettingsModalProps {
     modelsLoaded?: boolean
     artStyle?: string
     analysisModel?: string
+    reviewModel?: string
     characterModel?: string
     locationModel?: string
     imageModel?: string
@@ -56,6 +57,7 @@ interface SettingsModalProps {
     ttsRate?: string
     onArtStyleChange?: (value: string) => void
     onAnalysisModelChange?: (value: string) => void
+    onReviewModelChange?: (value: string) => void
     onCharacterModelChange?: (value: string) => void
     onLocationModelChange?: (value: string) => void
     onImageModelChange?: (value: string) => void
@@ -129,6 +131,7 @@ export function SettingsModal({
     modelsLoaded = false,
     artStyle = 'american-comic',
     analysisModel,
+    reviewModel,
     characterModel,
     locationModel,
     imageModel,
@@ -140,6 +143,7 @@ export function SettingsModal({
     ttsRate,
     onArtStyleChange,
     onAnalysisModelChange,
+    onReviewModelChange,
     onCharacterModelChange,
     onLocationModelChange,
     onImageModelChange,
@@ -171,6 +175,10 @@ export function SettingsModal({
         () => userModels.llm.find((model) => model.value === analysisModel) || null,
         [userModels.llm, analysisModel],
     )
+    const selectedReviewModelOption = useMemo(
+        () => userModels.llm.find((model) => model.value === reviewModel) || null,
+        [userModels.llm, reviewModel],
+    )
     const selectedAudioModelOption = useMemo(
         () => userModels.audio.find((model) => model.value === audioModel) || null,
         [userModels.audio, audioModel],
@@ -183,6 +191,10 @@ export function SettingsModal({
     const analysisCapabilityFields = useMemo(
         () => extractCapabilityFields(selectedAnalysisModelOption?.capabilities, 'llm'),
         [selectedAnalysisModelOption],
+    )
+    const reviewCapabilityFields = useMemo(
+        () => extractCapabilityFields(selectedReviewModelOption?.capabilities, 'llm'),
+        [selectedReviewModelOption],
     )
     const audioCapabilityFields = useMemo(
         () => extractCapabilityFields(selectedAudioModelOption?.capabilities, 'audio'),
@@ -227,6 +239,9 @@ export function SettingsModal({
     const selectedAnalysisOverrides = useMemo<Record<string, CapabilityValue>>(() => {
         return readCapabilitySelectionForModel(capabilityOverrides, analysisModel)
     }, [capabilityOverrides, analysisModel])
+    const selectedReviewOverrides = useMemo<Record<string, CapabilityValue>>(() => {
+        return readCapabilitySelectionForModel(capabilityOverrides, reviewModel)
+    }, [capabilityOverrides, reviewModel])
     const selectedAudioOverrides = useMemo<Record<string, CapabilityValue>>(() => {
         return readCapabilitySelectionForModel(capabilityOverrides, audioModel)
     }, [capabilityOverrides, audioModel])
@@ -404,6 +419,22 @@ export function SettingsModal({
                                     capabilityOverrides={selectedAnalysisOverrides}
                                     onCapabilityChange={(field, rawValue, sample) => {
                                         applyCapabilityOverride(analysisModel, field, rawValue, sample)
+                                    }}
+                                    placeholder={t('pleaseSelect')}
+                                />
+                            </div>
+
+                            <div className="space-y-2">
+                                <label className="text-sm font-medium text-[var(--glass-text-secondary)]">{t('reviewModel')}</label>
+                                <ModelCapabilityDropdown
+                                    models={userModels.llm}
+                                    value={reviewModel}
+                                    onModelChange={(v) => handleModelChange(v, userModels.llm, 'llm', onReviewModelChange)}
+                                    capabilityFields={reviewCapabilityFields}
+                                    placementMode="downward"
+                                    capabilityOverrides={selectedReviewOverrides}
+                                    onCapabilityChange={(field, rawValue, sample) => {
+                                        applyCapabilityOverride(reviewModel, field, rawValue, sample)
                                     }}
                                     placeholder={t('pleaseSelect')}
                                 />

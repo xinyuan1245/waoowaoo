@@ -36,6 +36,7 @@ export function useWorkspaceProjectSnapshot({
       globalAssetText: projectData?.globalAssetText || '',
       novelText: episode?.novelText || '',
       analysisModel: projectData?.analysisModel,
+      reviewModel: projectData?.reviewModel,
       characterModel: projectData?.characterModel,
       locationModel: projectData?.locationModel,
       storyboardModel: projectData?.storyboardModel,

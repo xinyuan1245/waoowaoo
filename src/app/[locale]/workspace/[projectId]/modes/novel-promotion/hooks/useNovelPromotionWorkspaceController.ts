@@ -97,6 +97,7 @@ export function useNovelPromotionWorkspaceController({
     episodeId,
     currentStage,
     analysisModel: projectSnapshot.analysisModel,
+    reviewModel: projectSnapshot.reviewModel,
     novelText: projectSnapshot.novelText,
     t,
     onRefresh,

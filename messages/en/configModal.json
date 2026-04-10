@@ -10,6 +10,7 @@
     "ttsSettings": "TTS Settings",
     "loadingModels": "Loading model list...",
     "analysisModel": "Analysis Model",
+    "reviewModel": "Storyboard Review Model",
     "characterModel": "Character Model",
     "locationModel": "Location Model",
     "storyboardModel": "Storyboard Model",

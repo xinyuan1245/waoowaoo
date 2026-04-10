@@ -142,10 +142,12 @@ export async function handleScriptToStoryboardTask(job: Job<TaskJobData>) {
     inputModel,
     projectAnalysisModel: novelData.analysisModel,
   })
-  const normalizedReviewModel = normalizeModelKey(inputReviewModel)
-  if (inputReviewModel && !normalizedReviewModel) {
+  const normalizedInputReviewModel = normalizeModelKey(inputReviewModel)
+  if (inputReviewModel && !normalizedInputReviewModel) {
     throw new Error('reviewModel is invalid')
   }
+  const normalizedConfiguredReviewModel = normalizeModelKey(novelData.reviewModel)
+  const normalizedReviewModel = normalizedInputReviewModel || normalizedConfiguredReviewModel
   const reviewModel = normalizedReviewModel && normalizedReviewModel !== model ? normalizedReviewModel : null
 
   const [llmCapabilityOptions, reviewLlmCapabilityOptions, workflowConcurrency] = await Promise.all([

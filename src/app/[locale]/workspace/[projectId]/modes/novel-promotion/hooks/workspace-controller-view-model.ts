@@ -21,6 +21,7 @@ interface ProjectSnapshotInput {
   globalAssetText: string
   novelText: string
   analysisModel: string | undefined
+  reviewModel: string | undefined
   characterModel: string | undefined
   locationModel: string | undefined
   storyboardModel: string | undefined

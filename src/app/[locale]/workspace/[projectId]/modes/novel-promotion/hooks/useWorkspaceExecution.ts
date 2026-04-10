@@ -13,6 +13,7 @@ interface UseWorkspaceExecutionParams {
   episodeId?: string
   currentStage: string
   analysisModel?: string | null
+  reviewModel?: string | null
   novelText: string
   t: (key: string) => string
   onRefresh: (options?: { scope?: string; mode?: string }) => Promise<void>
@@ -62,6 +63,7 @@ export function useWorkspaceExecution({
   episodeId,
   currentStage,
   analysisModel,
+  reviewModel,
   novelText,
   t,
   onRefresh,
@@ -234,6 +236,7 @@ export function useWorkspaceExecution({
       const runResult = await scriptToStoryboardStream.run({
         episodeId,
         model: analysisModel || undefined,
+        reviewModel: reviewModel || undefined,
         temperature: 0.7,
         reasoning: true,
       })
@@ -252,7 +255,7 @@ export function useWorkspaceExecution({
       setIsConfirmingAssets(false)
       setTransitionProgress({ message: '', step: '' })
     }
-  }, [analysisModel, episodeId, finalizeScriptToStoryboardSuccess, scriptToStoryboardStream, t])
+  }, [analysisModel, episodeId, finalizeScriptToStoryboardSuccess, reviewModel, scriptToStoryboardStream, t])
 
   useEffect(() => {
     const active = (

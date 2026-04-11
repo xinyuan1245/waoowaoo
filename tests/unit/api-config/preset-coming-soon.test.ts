@@ -78,6 +78,8 @@ describe('api-config preset coming soon', () => {
       'gpt-5',
       'gpt-5-mini',
       'claude-sonnet-4-5-20250929',
+      'gemini-3.1-pro',
+      'gemini-3-pro',
       'gemini-2.5-pro',
       'gemini-2.5-flash',
       'deepseek-chat',
@@ -94,13 +96,19 @@ describe('api-config preset coming soon', () => {
       'gpt-image-1.5',
       'seedream-4-5',
       'seedream-5-0-lite',
+      'gemini-2.5-flash-image-preview',
+      'nano-banana-fast',
       'nano-banana-pro',
+      'nano-banana-pro-vt',
       'nano-banana-2',
+      'nano-banana-2-4k-cl',
     ]))
     expect(videoModels.map((entry) => entry.modelId)).toEqual(expect.arrayContaining([
       'sora-2',
       'sora-2-pro',
       'veo-3.1',
+      'veo3.1-pro',
+      'veo3.1-fast-1080p',
       'kling-v2.5-turbo-pro',
       'hailuo-02',
     ]))

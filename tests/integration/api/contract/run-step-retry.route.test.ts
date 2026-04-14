@@ -74,8 +74,8 @@ describe('api contract - run step retry route', () => {
     })
   })
 
-  it('rejects retry when step is not failed', async () => {
-    retryFailedStepMock.mockRejectedValue(new Error('RUN_STEP_NOT_FAILED'))
+  it('rejects retry when step is not retryable', async () => {
+    retryFailedStepMock.mockRejectedValue(new Error('RUN_STEP_NOT_RETRYABLE'))
     const route = await import('@/app/api/runs/[runId]/steps/[stepKey]/retry/route')
 
     const req = buildMockRequest({

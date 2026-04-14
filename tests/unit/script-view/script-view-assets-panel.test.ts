@@ -59,7 +59,7 @@ function renderWithIntl(node: ReactElement) {
   )
 }
 
-function renderPanel(propsCount: number) {
+function renderPanel(propsCount: number, options?: { allAssetsHaveImages?: boolean; isSubmittingStoryboardBuild?: boolean }) {
   Reflect.set(globalThis, 'React', React)
 
   const props = Array.from({ length: propsCount }, (_, index) => ({
@@ -87,13 +87,13 @@ function renderPanel(propsCount: number) {
       onOpenAssetLibrary: () => undefined,
       assetsLoading: false,
       assetsLoadingState: null,
-      allAssetsHaveImages: true,
+      allAssetsHaveImages: options?.allAssetsHaveImages ?? true,
       globalCharIds: [],
       globalLocationIds: [],
       globalPropIds: [],
       missingAssetsCount: 0,
       onGenerateStoryboard: () => undefined,
-      isSubmittingStoryboardBuild: false,
+      isSubmittingStoryboardBuild: options?.isSubmittingStoryboardBuild ?? false,
       getSelectedAppearances: () => [],
       tScript: (key: string, values?: Record<string, unknown>) => {
         if (key === 'inSceneAssets') return '出场资产'
@@ -132,5 +132,12 @@ describe('ScriptViewAssetsPanel', () => {
 
     expect(html).toContain('道具 (0)')
     expect(html).toContain('当前片段未选择道具')
+  })
+
+  it('keeps generate button enabled when assets are missing images', () => {
+    const html = renderPanel(1, { allAssetsHaveImages: false })
+
+    expect(html).toContain('开始生成')
+    expect(html).not.toContain('disabled=""')
   })
 })

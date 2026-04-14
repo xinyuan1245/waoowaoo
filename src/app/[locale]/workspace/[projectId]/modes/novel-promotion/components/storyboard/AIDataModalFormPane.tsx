@@ -14,20 +14,14 @@ import type {
 
 interface AIDataModalFormPaneProps {
   t: ReturnType<typeof useTranslations<'storyboard'>>
-  shotType: string
-  cameraMove: string
   description: string
   location: string | null
   characters: AIDataCharacter[]
-  videoPrompt: string
   photographyRules: PhotographyRules | null
   actingNotes: ActingCharacter[]
   activeCharIdx: number
   onActiveCharIdxChange: (idx: number) => void
-  onShotTypeChange: (value: string) => void
-  onCameraMoveChange: (value: string) => void
   onDescriptionChange: (value: string) => void
-  onVideoPromptChange: (value: string) => void
   onPhotographyFieldChange: (path: string, value: string) => void
   onPhotographyCharacterChange: (index: number, field: keyof PhotographyCharacter, value: string) => void
   onActingCharacterChange: (index: number, field: keyof ActingCharacter, value: string) => void
@@ -130,20 +124,14 @@ function CollapseSection({
 
 export default function AIDataModalFormPane({
   t,
-  shotType,
-  cameraMove,
   description,
   location,
   characters,
-  videoPrompt,
   photographyRules,
   actingNotes,
   activeCharIdx,
   onActiveCharIdxChange,
-  onShotTypeChange,
-  onCameraMoveChange,
   onDescriptionChange,
-  onVideoPromptChange,
   onPhotographyFieldChange,
   onPhotographyCharacterChange,
   onActingCharacterChange,
@@ -172,47 +160,18 @@ export default function AIDataModalFormPane({
         />
       </section>
 
-      {/* ② 镜头设置 */}
-      <section>
-        <SectionLabel>{t('aiData.shotAndScene')}</SectionLabel>
-        <div className="grid grid-cols-2 gap-3 mb-2">
-          <div>
-            <FL>{t('aiData.shotType')}</FL>
-            <div className="relative">
-              <AppIcon name="clapperboard" className="pointer-events-none absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-[var(--glass-text-tertiary)]" />
-              <GlassInput
-                density="compact"
-                value={shotType}
-                onChange={e => onShotTypeChange(e.target.value)}
-                placeholder={t('aiData.shotTypePlaceholder')}
-                className="pl-9"
-              />
-            </div>
-          </div>
-          <div>
-            <FL>{t('aiData.cameraMove')}</FL>
-            <div className="relative">
-              <AppIcon name="video" className="pointer-events-none absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-[var(--glass-text-tertiary)]" />
-              <GlassInput
-                density="compact"
-                value={cameraMove}
-                onChange={e => onCameraMoveChange(e.target.value)}
-                placeholder={t('aiData.cameraMovePlaceholder')}
-                className="pl-9"
-              />
-            </div>
-          </div>
-        </div>
-        {/* 场景 + 比例 — 只读文字，不用 input 避免视觉干扰 */}
-        {location && (
+      {/* 场景只读信息 */}
+      {location && (
+        <section>
+          <SectionLabel>{t('aiData.shotAndScene')}</SectionLabel>
           <div className="flex items-center gap-2 text-[11.5px] text-[var(--glass-text-tertiary)]">
             <AppIcon name="imageAlt" className="h-3.5 w-3.5 text-[var(--glass-tone-info-fg)] flex-shrink-0" />
             <span>
               {t('aiData.scene').replace('（只读）', '')}：<span className="text-[var(--glass-text-secondary)] font-medium">{location}</span>
             </span>
           </div>
-        )}
-      </section>
+        </section>
+      )}
 
       {/* ③ 角色详情 — tab 切换 */}
       {characters.length > 0 && (
@@ -340,18 +299,7 @@ export default function AIDataModalFormPane({
         </section>
       )}
 
-      {/* ④ 视频提示词 — 折叠 */}
-      <CollapseSection label={t('aiData.videoPrompt')} iconName="video">
-        <AutoGrowTextarea
-          rows={4}
-          value={videoPrompt}
-          onChange={e => onVideoPromptChange(e.target.value)}
-          placeholder={t('panel.videoPromptPlaceholder')}
-          className="bg-[var(--glass-tone-warning-bg)]"
-        />
-      </CollapseSection>
-
-      {/* ⑤ 摄影环境 — 折叠 */}
+      {/* ④ 摄影环境 — 折叠 */}
       {photographyRules && (
         <CollapseSection label={t('aiData.photoEnv')} iconName="film">
           <div>

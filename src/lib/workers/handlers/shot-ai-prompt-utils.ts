@@ -24,6 +24,12 @@ export function parseShotPromptResponse(responseText: string): {
 } {
   try {
     const direct = parseJsonObject(responseText)
+    if (typeof direct.video_prompt === 'string' && direct.video_prompt.trim()) {
+      return {
+        imagePrompt: typeof direct.image_prompt === 'string' ? direct.image_prompt.trim() : '',
+        videoPrompt: direct.video_prompt.trim(),
+      }
+    }
     if (typeof direct.image_prompt === 'string' && direct.image_prompt.trim()) {
       return {
         imagePrompt: direct.image_prompt.trim(),

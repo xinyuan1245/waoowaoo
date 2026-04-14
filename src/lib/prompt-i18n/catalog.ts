@@ -55,7 +55,36 @@ export const PROMPT_CATALOG: Record<PromptId, PromptCatalogEntry> = {
   },
   [PROMPT_IDS.NP_AGENT_STORYBOARD_DETAIL]: {
     pathStem: 'novel-promotion/agent_storyboard_detail',
-    variableKeys: ['panels_json', 'characters_age_gender', 'locations_description', 'props_description'],
+    variableKeys: [
+      'panels_json',
+      'characters_age_gender',
+      'locations_description',
+      'props_description',
+      'photography_rules_json',
+      'acting_directions_json',
+    ],
+  },
+  [PROMPT_IDS.NP_AGENT_STORYBOARD_IMAGE_PROMPT_REFINE]: {
+    pathStem: 'novel-promotion/agent_storyboard_image_prompt_refine',
+    variableKeys: [
+      'panels_json',
+      'characters_info',
+      'locations_description',
+      'props_description',
+      'photography_rules_json',
+      'acting_directions_json',
+    ],
+  },
+  [PROMPT_IDS.NP_AGENT_STORYBOARD_VIDEO_PROMPT_REFINE]: {
+    pathStem: 'novel-promotion/agent_storyboard_video_prompt_refine',
+    variableKeys: [
+      'panels_json',
+      'characters_info',
+      'locations_description',
+      'props_description',
+      'photography_rules_json',
+      'acting_directions_json',
+    ],
   },
   [PROMPT_IDS.NP_AGENT_STORYBOARD_INSERT]: {
     pathStem: 'novel-promotion/agent_storyboard_insert',
@@ -66,17 +95,6 @@ export const PROMPT_CATALOG: Record<PromptId, PromptCatalogEntry> = {
       'locations_description',
       'props_description',
       'user_input',
-    ],
-  },
-  [PROMPT_IDS.NP_AGENT_STORYBOARD_MERGE]: {
-    pathStem: 'novel-promotion/agent_storyboard_merge',
-    variableKeys: [
-      'panels_json',
-      'clip_json',
-      'clip_content',
-      'characters_full_description',
-      'locations_description',
-      'props_description',
     ],
   },
   [PROMPT_IDS.NP_AGENT_STORYBOARD_PLAN]: {
@@ -118,6 +136,10 @@ export const PROMPT_CATALOG: Record<PromptId, PromptCatalogEntry> = {
   },
   [PROMPT_IDS.NP_IMAGE_PROMPT_MODIFY]: {
     pathStem: 'novel-promotion/image_prompt_modify',
+    variableKeys: ['prompt_input', 'user_input', 'video_prompt_input'],
+  },
+  [PROMPT_IDS.NP_VIDEO_PROMPT_MODIFY]: {
+    pathStem: 'novel-promotion/video_prompt_modify',
     variableKeys: ['prompt_input', 'user_input', 'video_prompt_input'],
   },
   [PROMPT_IDS.NP_LOCATION_CREATE]: {

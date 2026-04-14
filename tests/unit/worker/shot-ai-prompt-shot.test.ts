@@ -23,7 +23,10 @@ vi.mock('@/lib/workers/utils', () => ({
   assertTaskActive: runtimeMock.assertTaskActive,
 }))
 vi.mock('@/lib/prompt-i18n', () => ({
-  PROMPT_IDS: { NP_IMAGE_PROMPT_MODIFY: 'np_image_prompt_modify' },
+  PROMPT_IDS: {
+    NP_IMAGE_PROMPT_MODIFY: 'np_image_prompt_modify',
+    NP_VIDEO_PROMPT_MODIFY: 'np_video_prompt_modify',
+  },
   buildPrompt: vi.fn(() => 'shot-final-prompt'),
 }))
 
@@ -71,11 +74,12 @@ describe('worker shot-ai-prompt-shot behavior', () => {
     const result = await handleModifyShotPromptTask(job, payload)
 
     expect(runtimeMock.runShotPromptCompletion).toHaveBeenCalledWith(expect.objectContaining({
-      action: 'ai_modify_shot_prompt',
+      action: 'ai_modify_image_prompt',
       prompt: 'shot-final-prompt',
     }))
     expect(result).toEqual({
       success: true,
+      agentType: 'image_prompt',
       modifiedImagePrompt: 'updated image prompt',
       modifiedVideoPrompt: 'updated video prompt',
       referencedAssets: [{ name: 'Hero', description: 'black coat' }],

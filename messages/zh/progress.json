@@ -137,6 +137,8 @@
     "cinematographyRules": "摄影规则生成",
     "actingDirection": "演技指导生成",
     "storyboardDetailRefine": "分镜细节补全",
+    "imagePromptOptimize": "文生图提示词优化",
+    "videoPromptOptimize": "分镜脚本转视频提示词优化",
     "voiceAnalyze": "台词分析"
   }
 }

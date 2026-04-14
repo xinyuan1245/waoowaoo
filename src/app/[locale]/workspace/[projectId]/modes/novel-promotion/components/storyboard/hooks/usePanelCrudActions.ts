@@ -87,6 +87,7 @@ export function usePanelCrudActions({
           shotType: snapshot.shotType,
           cameraMove: snapshot.cameraMove,
           description: snapshot.description,
+          imagePrompt: snapshot.imagePrompt,
           location: snapshot.location,
           characters: JSON.stringify(snapshot.characters),
           srtStart: snapshot.srtStart,
@@ -126,6 +127,7 @@ export function usePanelCrudActions({
         shotType: snapshot.shotType,
         cameraMove: snapshot.cameraMove,
         description: snapshot.description,
+        imagePrompt: snapshot.imagePrompt,
         location: snapshot.location,
         characters: JSON.stringify(snapshot.characters),
         srtStart: snapshot.srtStart,
@@ -204,6 +206,7 @@ export function usePanelCrudActions({
         shotType: t('variant.defaultShotType'),
         cameraMove: t('variant.defaultCameraMove'),
         description: t('panel.newPanelDescription'),
+        imagePrompt: '',
         videoPrompt: '',
         characters: '[]',
       })

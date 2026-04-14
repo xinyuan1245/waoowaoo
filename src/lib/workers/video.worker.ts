@@ -18,9 +18,11 @@ import { normalizeToBase64ForGeneration } from '@/lib/media/outbound-image'
 import { resolveBuiltinCapabilitiesByModelKey } from '@/lib/model-capabilities/lookup'
 import { parseModelKeyStrict } from '@/lib/model-config-contract'
 import { getProviderConfig } from '@/lib/api-config'
-import { maybeOptimizeVideoPromptForModel } from '@/lib/video-prompt-skills'
-import { buildMergedVideoPromptSource, findVideoShotGroupForPanel } from '@/lib/video-shot-grouping'
-import { usesSeedance20VideoSkill } from '@/lib/video-prompt-skills'
+import { composeVideoPromptWithAgent, maybeOptimizeVideoPromptForModel } from '@/lib/video-prompt-skills'
+import {
+  buildFusedVideoGenerationPrompt,
+  buildPersistedStoryboardVideoPrompt,
+} from '@/lib/novel-promotion/storyboard-prompt-composer'
 
 type AnyObj = Record<string, unknown>
 type VideoOptionValue = string | number | boolean
@@ -100,7 +102,54 @@ async function generateVideoForPanel(
   const firstLastCustomPrompt = typeof firstLastFramePayload?.customPrompt === 'string' ? firstLastFramePayload.customPrompt : null
   const persistedFirstLastPrompt = firstLastFramePayload ? panel.firstLastFramePrompt : null
   const customPrompt = typeof payload.customPrompt === 'string' ? payload.customPrompt : null
-  let prompt = firstLastCustomPrompt || persistedFirstLastPrompt || customPrompt || panel.videoPrompt || panel.description
+  const basePrompt = (typeof panel.videoPrompt === 'string' ? panel.videoPrompt.trim() : '')
+    || buildPersistedStoryboardVideoPrompt({
+      shot_type: panel.shotType,
+      camera_move: panel.cameraMove,
+      description: panel.description,
+      location: panel.location,
+      characters: panel.characters,
+      source_text: panel.srtSegment,
+      video_prompt: panel.videoPrompt,
+    })
+  const fusedPrompt = buildFusedVideoGenerationPrompt({
+    shot_type: panel.shotType,
+    camera_move: panel.cameraMove,
+    description: panel.description,
+    location: panel.location,
+    characters: panel.characters,
+    source_text: panel.srtSegment,
+    image_prompt: panel.imagePrompt,
+    video_prompt: basePrompt,
+    photographyPlan: panel.photographyRules,
+    actingNotes: panel.actingNotes,
+  })
+  let prompt = firstLastCustomPrompt
+    || persistedFirstLastPrompt
+    || customPrompt
+    || fusedPrompt
+  if (!firstLastCustomPrompt && !persistedFirstLastPrompt && !customPrompt) {
+    prompt = await composeVideoPromptWithAgent({
+      userId: job.data.userId,
+      projectId: job.data.projectId,
+      locale: job.data.locale,
+      analysisModel: analysisModel || null,
+      fallbackPrompt: prompt,
+      panelContext: {
+        hasReferenceImage: true,
+        imagePrompt: typeof panel.imagePrompt === 'string' ? panel.imagePrompt : '',
+        videoPrompt: basePrompt,
+        description: typeof panel.description === 'string' ? panel.description : '',
+        sourceText: typeof panel.srtSegment === 'string' ? panel.srtSegment : '',
+        shotType: typeof panel.shotType === 'string' ? panel.shotType : '',
+        cameraMove: typeof panel.cameraMove === 'string' ? panel.cameraMove : '',
+        location: typeof panel.location === 'string' ? panel.location : '',
+        characters: panel.characters,
+        photographyRules: panel.photographyRules,
+        actingNotes: panel.actingNotes,
+      },
+    })
+  }
   if (!prompt) {
     throw new Error(`Panel ${panel.id} has no video prompt`)
   }
@@ -142,39 +191,6 @@ async function generateVideoForPanel(
           lastFrameImageBase64 = await normalizeToBase64ForGeneration(lastFrameUrl)
         }
       }
-    }
-  }
-
-  if (!firstLastFramePayload && usesSeedance20VideoSkill(model)) {
-    const storyboard = await prisma.novelPromotionStoryboard.findUnique({
-      where: { id: panel.storyboardId },
-      select: {
-        id: true,
-        panels: {
-          where: {
-            imageUrl: { not: null },
-          },
-          orderBy: { panelIndex: 'asc' },
-          select: {
-            id: true,
-            storyboardId: true,
-            panelIndex: true,
-            location: true,
-            characters: true,
-            videoPrompt: true,
-            description: true,
-            shotType: true,
-            cameraMove: true,
-            duration: true,
-          },
-        },
-      },
-    })
-    const group = storyboard
-      ? findVideoShotGroupForPanel(storyboard.panels, panel.storyboardId, panel.panelIndex)
-      : null
-    if (group && group.members.length > 1 && group.members[0]?.panelIndex === panel.panelIndex) {
-      prompt = buildMergedVideoPromptSource(group)
     }
   }
 

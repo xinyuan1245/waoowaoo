@@ -206,7 +206,7 @@ export function useRunStreamState<TParams extends Record<string, unknown>>(
       event: 'run.start',
       ts: new Date().toISOString(),
       status: 'running',
-      message: 'retrying failed step',
+      message: 'retrying selected step',
     })
     setIsRecoveredRunning(true)
     return {

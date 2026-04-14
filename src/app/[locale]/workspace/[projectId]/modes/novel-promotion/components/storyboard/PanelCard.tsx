@@ -111,7 +111,6 @@ export default function PanelCard({
           panelId={panel.id}
           imageUrl={imageUrl}
           globalPanelNumber={globalPanelNumber}
-          shotType={panel.shot_type}
           videoRatio={videoRatio}
           isDeleting={isDeleting}
           isModifying={isModifying}

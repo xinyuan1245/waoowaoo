@@ -51,10 +51,16 @@ function resolveStoryToScriptInvalidation(params: {
   return uniqueStepKeys(affected)
 }
 
-type StoryboardPhase = 'phase1' | 'phase2_cinematography' | 'phase2_acting' | 'phase3_detail'
+type StoryboardPhase =
+  | 'phase1'
+  | 'phase2_cinematography'
+  | 'phase2_acting'
+  | 'phase3_detail'
+  | 'phase4_image_prompt'
+  | 'phase5_video_prompt'
 
 function parseStoryboardStepKey(stepKey: string): { clipId: string; phase: StoryboardPhase } | null {
-  const match = /^clip_(.+)_(phase1|phase2_cinematography|phase2_acting|phase3_detail)$/.exec(stepKey.trim())
+  const match = /^clip_(.+)_(phase1|phase2_cinematography|phase2_acting|phase3_detail|phase4_image_prompt|phase5_video_prompt)$/.exec(stepKey.trim())
   if (!match) return null
   const clipId = (match[1] || '').trim()
   const phase = match[2] as StoryboardPhase
@@ -81,12 +87,29 @@ function resolveScriptToStoryboardInvalidation(params: {
     affected.add(`${clipPrefix}phase2_cinematography`)
     affected.add(`${clipPrefix}phase2_acting`)
     affected.add(`${clipPrefix}phase3_detail`)
+    affected.add(`${clipPrefix}phase4_image_prompt`)
+    affected.add(`${clipPrefix}phase5_video_prompt`)
     affected.add('voice_analyze')
     return uniqueStepKeys(Array.from(affected).filter((stepKey) => params.existingStepKeys.has(stepKey)))
   }
 
   if (parsed.phase === 'phase2_cinematography' || parsed.phase === 'phase2_acting') {
     affected.add(`${clipPrefix}phase3_detail`)
+    affected.add(`${clipPrefix}phase4_image_prompt`)
+    affected.add(`${clipPrefix}phase5_video_prompt`)
+    affected.add('voice_analyze')
+    return uniqueStepKeys(Array.from(affected).filter((stepKey) => params.existingStepKeys.has(stepKey)))
+  }
+
+  if (parsed.phase === 'phase3_detail') {
+    affected.add(`${clipPrefix}phase4_image_prompt`)
+    affected.add(`${clipPrefix}phase5_video_prompt`)
+    affected.add('voice_analyze')
+    return uniqueStepKeys(Array.from(affected).filter((stepKey) => params.existingStepKeys.has(stepKey)))
+  }
+
+  if (parsed.phase === 'phase4_image_prompt') {
+    affected.add(`${clipPrefix}phase5_video_prompt`)
     affected.add('voice_analyze')
     return uniqueStepKeys(Array.from(affected).filter((stepKey) => params.existingStepKeys.has(stepKey)))
   }
@@ -162,9 +185,11 @@ const SCRIPT_TO_STORYBOARD_DEFINITION: WorkflowDefinition = {
       dependsOn: ['plan_panels'],
       retryable: true,
       artifactTypes: [
-        'storyboard.clip.phase2_cinematography',
-        'storyboard.clip.phase2_acting',
+        'storyboard.clip.phase2.cine',
+        'storyboard.clip.phase2.acting',
         'storyboard.clip.phase3',
+        'storyboard.clip.phase4.image_prompt',
+        'storyboard.clip.phase5.video_prompt',
       ],
       failureMode: 'fail_run',
     },

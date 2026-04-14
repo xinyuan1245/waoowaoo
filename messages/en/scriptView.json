@@ -62,8 +62,8 @@
     },
     "generate": {
         "missingAssets": "{count} assets missing images",
-        "missingAssetsTip": "Please generate images for all characters and locations in",
-        "missingAssetsTipLink": "first",
+        "missingAssetsTip": "Recommended: generate images in",
+        "missingAssetsTipLink": "first for characters/locations/props (you can still generate storyboard now)",
         "generating": "Generating...",
         "startGenerate": "Confirm and Start Drawing →"
     }

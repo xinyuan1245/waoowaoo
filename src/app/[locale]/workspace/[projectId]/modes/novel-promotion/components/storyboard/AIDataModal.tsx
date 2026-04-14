@@ -40,14 +40,8 @@ export default function AIDataModal({
   const [activeCharIdx, setActiveCharIdx] = useState(0)
 
   const {
-    shotType,
-    setShotType,
-    cameraMove,
-    setCameraMove,
     description,
     setDescription,
-    videoPrompt,
-    setVideoPrompt,
     photographyRules,
     actingNotes,
     updatePhotographyField,
@@ -73,12 +67,9 @@ export default function AIDataModal({
   const previewJson = {
     aspect_ratio: videoRatio,
     shot: {
-      shot_type: shotType,
-      camera_move: cameraMove,
       description,
       location,
       characters,
-      prompt_text: `A ${videoRatio} shot: ${description}. ${videoPrompt}`,
     },
     ...(photographyRules ? { photography_rules: photographyRules } : {}),
     ...(actingNotes.length > 0 ? { acting_notes: actingNotes } : {}),
@@ -127,20 +118,14 @@ export default function AIDataModal({
         <div className="flex flex-1 min-h-0 overflow-hidden">
           <AIDataModalFormPane
             t={t}
-            shotType={shotType}
-            cameraMove={cameraMove}
             description={description}
             location={location}
             characters={characters}
-            videoPrompt={videoPrompt}
             photographyRules={photographyRules}
             actingNotes={actingNotes}
             activeCharIdx={activeCharIdx}
             onActiveCharIdxChange={setActiveCharIdx}
-            onShotTypeChange={setShotType}
-            onCameraMoveChange={setCameraMove}
             onDescriptionChange={setDescription}
-            onVideoPromptChange={setVideoPrompt}
             onPhotographyFieldChange={updatePhotographyField}
             onPhotographyCharacterChange={updatePhotographyCharacter}
             onActingCharacterChange={updateActingCharacter}

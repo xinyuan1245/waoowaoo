@@ -16,6 +16,7 @@ export async function handleModifyShotPromptTask(job: Job<TaskJobData>, payload:
   const currentPrompt = readRequiredString(payload.currentPrompt, 'currentPrompt')
   const currentVideoPrompt = readText(payload.currentVideoPrompt)
   const modifyInstruction = readRequiredString(payload.modifyInstruction, 'modifyInstruction')
+  const agentType = payload.agentType === 'video_prompt' ? 'video_prompt' : 'image_prompt'
   const referencedAssets = Array.isArray(payload.referencedAssets) ? payload.referencedAssets : []
   const novelData = await resolveAnalysisModel(job.data.projectId, job.data.userId)
 
@@ -33,8 +34,11 @@ export async function handleModifyShotPromptTask(job: Job<TaskJobData>, payload:
   const userInput = assetDescriptions
     ? `${modifyInstruction}\n\n引用的资产描述：${assetDescriptions}`
     : modifyInstruction
+  const promptId = agentType === 'video_prompt'
+    ? PROMPT_IDS.NP_VIDEO_PROMPT_MODIFY
+    : PROMPT_IDS.NP_IMAGE_PROMPT_MODIFY
   const finalPrompt = buildPrompt({
-    promptId: PROMPT_IDS.NP_IMAGE_PROMPT_MODIFY,
+    promptId,
     locale: job.data.locale,
     variables: {
       prompt_input: currentPrompt,
@@ -54,10 +58,10 @@ export async function handleModifyShotPromptTask(job: Job<TaskJobData>, payload:
     job,
     model: novelData.analysisModel,
     prompt: finalPrompt,
-    action: 'ai_modify_shot_prompt',
+    action: agentType === 'video_prompt' ? 'ai_modify_video_prompt' : 'ai_modify_image_prompt',
     streamContextKey: 'ai_modify_shot_prompt',
     streamStepId: 'ai_modify_shot_prompt',
-    streamStepTitle: '镜头提示词修改',
+    streamStepTitle: agentType === 'video_prompt' ? '视频提示词修改' : '画面提示词修改',
   })
   await assertTaskActive(job, 'ai_modify_shot_prompt_parse')
 
@@ -71,6 +75,7 @@ export async function handleModifyShotPromptTask(job: Job<TaskJobData>, payload:
 
   return {
     success: true,
+    agentType,
     modifiedImagePrompt: parsed.imagePrompt,
     modifiedVideoPrompt: parsed.videoPrompt,
     referencedAssets,

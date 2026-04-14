@@ -20,6 +20,7 @@ export interface StoryboardPanel {
   shot_type: string
   camera_move: string | null
   description: string
+  image_prompt?: string
   characters: { name: string; appearance: string; slot?: string }[]
   location?: string
   srt_range?: string
@@ -136,6 +137,7 @@ export function useStoryboardState({
         shot_type: p.shotType ?? '',
         camera_move: p.cameraMove,
         description: p.description ?? '',
+        image_prompt: p.imagePrompt || undefined,
         location: p.location || undefined,
         characters,
         srt_range: p.srtStart && p.srtEnd ? `${p.srtStart}-${p.srtEnd}` : undefined,
@@ -162,6 +164,7 @@ export function useStoryboardState({
       shotType: panel.shot_type,
       cameraMove: panel.camera_move,
       description: panel.description,
+      imagePrompt: panel.image_prompt || null,
       location: panel.location || null,
       characters: panel.characters || [],
       srtStart: null,

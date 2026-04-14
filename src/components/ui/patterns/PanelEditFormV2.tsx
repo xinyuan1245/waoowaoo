@@ -5,7 +5,6 @@ import type { PanelEditData } from '@/app/[locale]/workspace/[projectId]/modes/n
 import {
   GlassChip,
   GlassField,
-  GlassInput,
   GlassTextarea
 } from '@/components/ui/primitives'
 import type { UiPatternMode } from './types'
@@ -64,26 +63,6 @@ export default function PanelEditFormV2({
         </div>
       ) : null}
 
-      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-        <GlassField label={t('panel.shotTypeLabel')}>
-          <GlassInput
-            density="compact"
-            value={panelData.shotType || ''}
-            onChange={(event) => onUpdate({ shotType: event.target.value || null })}
-            placeholder={t('panel.shotTypePlaceholder')}
-          />
-        </GlassField>
-
-        <GlassField label={t('panel.cameraMove')}>
-          <GlassInput
-            density="compact"
-            value={panelData.cameraMove || ''}
-            onChange={(event) => onUpdate({ cameraMove: event.target.value || null })}
-            placeholder={t('panel.cameraMovePlaceholder')}
-          />
-        </GlassField>
-      </div>
-
       {panelData.sourceText ? (
         <GlassField label={t('panel.sourceText')}>
           <div className="rounded-[var(--glass-radius-md)] bg-[var(--glass-bg-surface-strong)] px-3 py-2.5">
@@ -92,23 +71,13 @@ export default function PanelEditFormV2({
         </GlassField>
       ) : null}
 
-      <GlassField label={t('panel.sceneDescription')}>
+      <GlassField label={t('prompts.imagePrompt')}>
         <GlassTextarea
           density="compact"
           rows={2}
-          value={panelData.description || ''}
-          onChange={(event) => onUpdate({ description: event.target.value })}
+          value={panelData.imagePrompt || ''}
+          onChange={(event) => onUpdate({ imagePrompt: event.target.value })}
           placeholder={t('panel.sceneDescriptionPlaceholder')}
-        />
-      </GlassField>
-
-      <GlassField label={t('panel.videoPrompt')} hint={t('panel.videoPromptHint')}>
-        <GlassTextarea
-          density="compact"
-          rows={2}
-          value={panelData.videoPrompt || ''}
-          onChange={(event) => onUpdate({ videoPrompt: event.target.value })}
-          placeholder={t('panel.videoPromptPlaceholder')}
         />
       </GlassField>
 

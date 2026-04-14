@@ -10,6 +10,10 @@ import { buildPrompt, PROMPT_IDS } from '@/lib/prompt-i18n'
 import { resolveInsertPanelUserInput } from '@/lib/novel-promotion/insert-panel'
 import { buildInsertPanelLocationsDescription } from '@/lib/novel-promotion/insert-panel-prompt-context'
 import {
+  buildPersistedStoryboardImagePrompt,
+  buildPersistedStoryboardVideoPrompt,
+} from '@/lib/novel-promotion/storyboard-prompt-composer'
+import {
   executePhase1,
   executePhase2,
   executePhase2Acting,
@@ -270,7 +274,7 @@ async function runStoryboardPhasesForClip(params: {
     params.projectName,
     params.locale,
   )
-  const [phase2, phase2Acting, phase3] = await Promise.all([
+  const [phase2, phase2Acting] = await Promise.all([
     executePhase2(
       params.clip,
       phase1.planPanels || [],
@@ -289,17 +293,18 @@ async function runStoryboardPhasesForClip(params: {
       params.projectName,
       params.locale,
     ),
-    executePhase3(
-      params.clip,
-      phase1.planPanels || [],
-      [],
-      params.novelPromotionData,
-      session,
-      params.projectId,
-      params.projectName,
-      params.locale,
-    ),
   ])
+
+  const phase3 = await executePhase3(
+    params.clip,
+    phase1.planPanels || [],
+    phase2.photographyRules || [],
+    params.novelPromotionData,
+    session,
+    params.projectId,
+    params.projectName,
+    params.locale,
+  )
 
   const photographyRules: PhotographyRule[] = phase2.photographyRules || []
   const actingDirections: ActingDirection[] = phase2Acting.actingDirections || []
@@ -403,6 +408,8 @@ async function handleRegenerateStoryboardTextTask(job: Job<TaskJobData>) {
       const srtRange = Array.isArray(panel.srt_range) ? panel.srt_range : []
       const srtStart = typeof srtRange[0] === 'number' ? srtRange[0] : null
       const srtEnd = typeof srtRange[1] === 'number' ? srtRange[1] : null
+      const imagePrompt = buildPersistedStoryboardImagePrompt(panel)
+      const videoPrompt = buildPersistedStoryboardVideoPrompt(panel)
       await panelModel.create({
         data: {
           storyboardId,
@@ -411,13 +418,14 @@ async function handleRegenerateStoryboardTextTask(job: Job<TaskJobData>) {
           shotType: panel.shot_type || null,
           cameraMove: panel.camera_move || null,
           description: panel.description || null,
+          imagePrompt: imagePrompt || null,
           location: panel.location || null,
           characters: panel.characters ? JSON.stringify(panel.characters) : null,
           props: panel.props ? JSON.stringify(panel.props) : null,
           srtStart,
           srtEnd,
           duration: panel.duration || null,
-          videoPrompt: panel.video_prompt || null,
+          videoPrompt: videoPrompt || null,
           sceneType: typeof panel.scene_type === 'string' ? panel.scene_type : null,
           srtSegment: panel.source_text || null,
           photographyRules: panel.photographyPlan ? JSON.stringify(panel.photographyPlan) : null,
@@ -585,10 +593,31 @@ async function handleInsertPanelTask(job: Job<TaskJobData>) {
   const generatedShotType = typeof generatedPanel.shot_type === 'string' ? generatedPanel.shot_type : null
   const generatedCameraMove = typeof generatedPanel.camera_move === 'string' ? generatedPanel.camera_move : null
   const generatedDescription = typeof generatedPanel.description === 'string' ? generatedPanel.description : null
+  const generatedImagePrompt = typeof generatedPanel.image_prompt === 'string' ? generatedPanel.image_prompt : null
   const generatedVideoPrompt = typeof generatedPanel.video_prompt === 'string' ? generatedPanel.video_prompt : null
   const generatedLocation = typeof generatedPanel.location === 'string' ? generatedPanel.location : null
   const generatedSrtSegment = typeof generatedPanel.source_text === 'string' ? generatedPanel.source_text : null
   const generatedDuration = typeof generatedPanel.duration === 'number' ? generatedPanel.duration : null
+  const nextCharactersRaw = generatedPanel.characters ? JSON.stringify(generatedPanel.characters) : prevPanel.characters
+  const composedImagePrompt = buildPersistedStoryboardImagePrompt({
+    shot_type: generatedShotType || prevPanel.shotType,
+    camera_move: generatedCameraMove || prevPanel.cameraMove,
+    description: generatedDescription || userInput,
+    location: generatedLocation || prevPanel.location,
+    characters: nextCharactersRaw,
+    source_text: generatedSrtSegment || prevPanel.srtSegment,
+    image_prompt: generatedImagePrompt,
+    video_prompt: generatedVideoPrompt || generatedDescription || userInput,
+  })
+  const composedVideoPrompt = buildPersistedStoryboardVideoPrompt({
+    shot_type: generatedShotType || prevPanel.shotType,
+    camera_move: generatedCameraMove || prevPanel.cameraMove,
+    description: generatedDescription || userInput,
+    location: generatedLocation || prevPanel.location,
+    characters: nextCharactersRaw,
+    source_text: generatedSrtSegment || prevPanel.srtSegment,
+    video_prompt: generatedVideoPrompt || generatedDescription || userInput,
+  })
 
   await reportTaskProgress(job, 80, { stage: 'insert_panel_persist' })
 
@@ -626,9 +655,10 @@ async function handleInsertPanelTask(job: Job<TaskJobData>) {
         shotType: generatedShotType || prevPanel.shotType,
         cameraMove: generatedCameraMove || prevPanel.cameraMove,
         description: generatedDescription || userInput,
-        videoPrompt: generatedVideoPrompt || generatedDescription || userInput,
+        imagePrompt: composedImagePrompt || null,
+        videoPrompt: composedVideoPrompt || null,
         location: generatedLocation || prevPanel.location,
-        characters: generatedPanel.characters ? JSON.stringify(generatedPanel.characters) : prevPanel.characters,
+        characters: nextCharactersRaw,
         props: generatedPanel.props ? JSON.stringify(generatedPanel.props) : readNullableText(prevPanel as unknown as Record<string, unknown>, 'props'),
         srtSegment: generatedSrtSegment || prevPanel.srtSegment,
         duration: generatedDuration,

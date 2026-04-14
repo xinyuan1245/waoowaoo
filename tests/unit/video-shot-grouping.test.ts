@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import {
   buildMergedVideoPromptSource,
+  buildPanelVideoPromptSource,
   buildVideoShotGroups,
   findVideoShotGroupForPanel,
 } from '@/lib/video-shot-grouping'
@@ -62,9 +63,24 @@ describe('video shot grouping', () => {
     const group = findVideoShotGroupForPanel(panels, 'sb-1', 0)
     expect(group).toBeTruthy()
     const prompt = buildMergedVideoPromptSource(group!)
+    expect(prompt).toContain('摄影规则')
+    expect(prompt).toContain('运镜规则')
+    expect(prompt).toContain('动作连续规则')
     expect(prompt).toContain('连续单镜头视频')
     expect(prompt).toContain('段落1')
     expect(prompt).toContain('段落2')
-    expect(prompt).toContain('不要重复描述图片里已经明确的场景布置')
+    expect(prompt).toContain('不重复年龄和静态外观描述')
+  })
+
+  it('builds single panel prompt with complete cinematic language fields', () => {
+    const prompt = buildPanelVideoPromptSource(panels[0]!)
+    expect(prompt).toContain('摄影规则')
+    expect(prompt).toContain('运镜')
+    expect(prompt).toContain('画面')
+    expect(prompt).toContain('角色名')
+    expect(prompt).toContain('动作连续')
+    expect(prompt).toContain('张三')
+    expect(prompt).toContain('李四')
+    expect(prompt).toContain('缓慢推进')
   })
 })

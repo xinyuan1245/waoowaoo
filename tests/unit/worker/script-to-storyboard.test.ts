@@ -50,6 +50,7 @@ const runScriptToStoryboardOrchestratorMock = vi.hoisted(() =>
 )
 const parseVoiceLinesJsonMock = vi.hoisted(() => vi.fn())
 const persistStoryboardOutputsMock = vi.hoisted(() => vi.fn())
+const persistStoryboardsAndPanelsMock = vi.hoisted(() => vi.fn())
 const parseStoryboardRetryTargetMock = vi.hoisted(() => vi.fn())
 const runScriptToStoryboardAtomicRetryMock = vi.hoisted(() => vi.fn())
 const workflowLeaseMock = vi.hoisted(() => ({
@@ -74,6 +75,9 @@ const prismaMock = vi.hoisted(() => ({
   },
   novelPromotionEpisode: {
     findUnique: vi.fn(),
+  },
+  novelPromotionStoryboard: {
+    findMany: vi.fn(),
   },
   $transaction: vi.fn(),
 }))
@@ -163,6 +167,7 @@ vi.mock('@/lib/workers/handlers/script-to-storyboard-helpers', () => ({
   parseEffort: vi.fn(() => null),
   parseTemperature: vi.fn(() => 0.7),
   parseVoiceLinesJson: parseVoiceLinesJsonMock,
+  persistStoryboardsAndPanels: persistStoryboardsAndPanelsMock,
   persistStoryboardOutputs: persistStoryboardOutputsMock,
   toPositiveInt: (value: unknown) => {
     if (typeof value !== 'number' || !Number.isFinite(value)) return null
@@ -255,6 +260,7 @@ describe('worker script-to-storyboard behavior', () => {
         },
       ],
     })
+    prismaMock.novelPromotionStoryboard.findMany.mockResolvedValue([])
 
     prismaMock.$transaction.mockReset()
 
@@ -291,6 +297,13 @@ describe('worker script-to-storyboard behavior', () => {
         voiceLineCount: rows.length,
       }
     })
+    persistStoryboardsAndPanelsMock.mockResolvedValue([
+      {
+        storyboardId: 'storyboard-1',
+        clipId: 'clip-1',
+        panels: [{ id: 'panel-1', panelIndex: 1 }],
+      },
+    ])
 
     parseVoiceLinesJsonMock.mockReturnValue(baseVoiceRows())
   })
@@ -459,5 +472,146 @@ describe('worker script-to-storyboard behavior', () => {
       ],
       voiceLineRows: null,
     })
+  })
+
+  it('部分 clip 失败时保留成功 clip，并返回部分失败错误', async () => {
+    prismaMock.novelPromotionEpisode.findUnique.mockResolvedValue({
+      id: 'episode-1',
+      novelPromotionProjectId: 'np-project-1',
+      novelText: 'A complete chapter text for voice analyze.',
+      clips: [
+        {
+          id: 'clip-1',
+          content: 'clip 1 content',
+          characters: JSON.stringify(['Narrator']),
+          location: 'Office',
+          screenplay: 'Screenplay text',
+        },
+        {
+          id: 'clip-2',
+          content: 'clip 2 content',
+          characters: JSON.stringify(['Narrator']),
+          location: 'Office',
+          screenplay: 'Screenplay text',
+        },
+      ],
+    })
+
+    runScriptToStoryboardOrchestratorMock.mockImplementation((async (input: { clips: Array<{ id: string }> }) => {
+      if (input.clips.length > 1) {
+        throw new Error('clip-2 failed')
+      }
+      if (input.clips[0]?.id === 'clip-1') {
+        return {
+          clipPanels: [
+            {
+              clipId: 'clip-1',
+              clipIndex: 0,
+              finalPanels: [
+                {
+                  panel_number: 1,
+                  shot_type: 'close-up',
+                  camera_move: 'static',
+                  description: 'panel desc',
+                  video_prompt: 'panel prompt',
+                  location: 'room',
+                  characters: ['Narrator'],
+                },
+              ],
+            },
+          ],
+          phase1PanelsByClipId: {},
+          phase2CinematographyByClipId: {},
+          phase2ActingByClipId: {},
+          phase3PanelsByClipId: {},
+          summary: {
+            clipCount: 1,
+            totalPanelCount: 1,
+            totalStepCount: 4,
+          },
+        }
+      }
+      throw new Error('clip-2 failed')
+    }) as any)
+
+    const job = buildJob({ episodeId: 'episode-1' })
+    await expect(handleScriptToStoryboardTask(job)).rejects.toThrow('部分分镜生成失败')
+
+    expect(persistStoryboardsAndPanelsMock).toHaveBeenCalledWith({
+      episodeId: 'episode-1',
+      clipPanels: [
+        expect.objectContaining({
+          clipId: 'clip-1',
+        }),
+      ],
+    })
+    expect(persistStoryboardOutputsMock).not.toHaveBeenCalled()
+  })
+
+  it('resumeIncompleteClips=true 时仅处理缺失分镜 clip', async () => {
+    prismaMock.novelPromotionEpisode.findUnique.mockResolvedValue({
+      id: 'episode-1',
+      novelPromotionProjectId: 'np-project-1',
+      novelText: 'A complete chapter text for voice analyze.',
+      clips: [
+        {
+          id: 'clip-1',
+          content: 'clip 1 content',
+          characters: JSON.stringify(['Narrator']),
+          location: 'Office',
+          screenplay: 'Screenplay text',
+        },
+        {
+          id: 'clip-2',
+          content: 'clip 2 content',
+          characters: JSON.stringify(['Narrator']),
+          location: 'Office',
+          screenplay: 'Screenplay text',
+        },
+      ],
+    })
+    prismaMock.novelPromotionStoryboard.findMany.mockResolvedValue([
+      { clipId: 'clip-1', panelCount: 1 },
+    ])
+
+    runScriptToStoryboardOrchestratorMock.mockImplementation((async (input: { clips: Array<{ id: string }> }) => ({
+      clipPanels: [
+        {
+          clipId: input.clips[0]?.id || 'clip-2',
+          clipIndex: 0,
+          finalPanels: [
+            {
+              panel_number: 1,
+              shot_type: 'close-up',
+              camera_move: 'static',
+              description: 'panel desc',
+              video_prompt: 'panel prompt',
+              location: 'room',
+              characters: ['Narrator'],
+            },
+          ],
+        },
+      ],
+      phase1PanelsByClipId: {},
+      phase2CinematographyByClipId: {},
+      phase2ActingByClipId: {},
+      phase3PanelsByClipId: {},
+      summary: {
+        clipCount: input.clips.length,
+        totalPanelCount: 1,
+        totalStepCount: 4,
+      },
+    })) as any)
+
+    const job = buildJob({
+      episodeId: 'episode-1',
+      resumeIncompleteClips: true,
+    })
+    await handleScriptToStoryboardTask(job)
+
+    const firstCall = runScriptToStoryboardOrchestratorMock.mock.calls[0] as unknown as Array<Record<string, unknown>> | undefined
+    const clipsArg = ((firstCall?.[0]?.clips as Array<{ id: string }> | undefined) || [])
+    expect(clipsArg).toHaveLength(1)
+    expect(clipsArg[0]?.id).toBe('clip-2')
   })
 })

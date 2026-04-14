@@ -108,11 +108,9 @@ export function useWorkspaceExecution({
       })
     }
 
-    setStoryToScriptConsoleMinimized(true)
     onStageChange('script')
     onOpenAssetLibrary()
-    storyToScriptStream.reset()
-  }, [onOpenAssetLibrary, onRefresh, onStageChange, storyToScriptStream])
+  }, [onOpenAssetLibrary, onRefresh, onStageChange])
 
   const finalizeScriptToStoryboardSuccess = useCallback(async (runId: string) => {
     const normalizedRunId = runId.trim()
@@ -129,10 +127,8 @@ export function useWorkspaceExecution({
       })
     }
 
-    setScriptToStoryboardConsoleMinimized(true)
     onStageChange('storyboard')
-    scriptToStoryboardStream.reset()
-  }, [onRefresh, onStageChange, scriptToStoryboardStream])
+  }, [onRefresh, onStageChange])
 
   useEffect(() => {
     setStoryToScriptConsoleMinimized(readSessionBoolean(storyToScriptMinimizedStorageKey))
@@ -236,6 +232,7 @@ export function useWorkspaceExecution({
         model: analysisModel || undefined,
         temperature: 0.7,
         reasoning: true,
+        resumeIncompleteClips: true,
       })
       if (runResult.status !== 'completed') {
         throw new Error(runResult.errorMessage || t('execution.scriptToStoryboardFailed'))

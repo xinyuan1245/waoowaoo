@@ -137,6 +137,8 @@
     "cinematographyRules": "Generate cinematography rules",
     "actingDirection": "Generate acting direction",
     "storyboardDetailRefine": "Refine storyboard details",
+    "imagePromptOptimize": "Optimize text-to-image prompt",
+    "videoPromptOptimize": "Optimize storyboard-to-video prompt",
     "voiceAnalyze": "Analyze voice lines"
   }
 }

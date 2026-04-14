@@ -121,7 +121,7 @@ describe('run stream view', () => {
     expect(view.isVisible).toBe(true)
   })
 
-  it('hides completed run console after stream settles', () => {
+  it('keeps completed run console visible until user reset', () => {
     const state = buildRunState({
       status: 'completed',
       terminalAt: Date.now() - 30_000,
@@ -133,7 +133,7 @@ describe('run stream view', () => {
       clock: Date.now(),
     })
 
-    expect(view.isVisible).toBe(false)
+    expect(view.isVisible).toBe(true)
   })
 
   it('uses active step message instead of selected completed step message', () => {

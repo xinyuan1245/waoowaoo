@@ -28,9 +28,13 @@ export interface VideoShotGroup<TPanel extends VideoShotGroupingPanel = VideoSho
   members: TPanel[]
 }
 
-function normalizeText(value: unknown): string {
+function cleanInlineText(value: unknown): string {
   if (typeof value !== 'string') return ''
-  return value.trim().replace(/\s+/g, ' ').toLowerCase()
+  return value.trim().replace(/\s+/g, ' ')
+}
+
+function normalizeText(value: unknown): string {
+  return cleanInlineText(value).toLowerCase()
 }
 
 function normalizeCharacterName(value: unknown): string {
@@ -60,8 +64,56 @@ function parseCharacterArray(value: PanelCharacterInput): string[] {
     .sort()
 }
 
+function parseCharacterDisplayNames(value: PanelCharacterInput): string[] {
+  const raw = typeof value === 'string'
+    ? (() => {
+      try {
+        return JSON.parse(value) as unknown
+      } catch {
+        return []
+      }
+    })()
+    : value
+
+  if (!Array.isArray(raw)) return []
+
+  const names = raw
+    .map((item) => {
+      if (typeof item === 'string') return cleanInlineText(item)
+      if (item && typeof item === 'object' && !Array.isArray(item)) {
+        const record = item as Record<string, unknown>
+        return cleanInlineText(record.name)
+      }
+      return ''
+    })
+    .filter(Boolean)
+
+  return Array.from(new Set(names))
+}
+
 function buildCharacterSignature(value: PanelCharacterInput): string {
   return Array.from(new Set(parseCharacterArray(value))).join('|')
+}
+
+function describePanelForPrompt(panel: VideoShotGroupingPanel): string {
+  const shotType = cleanInlineText(panel.shotType)
+  const cameraMove = cleanInlineText(panel.cameraMove)
+  const location = cleanInlineText(panel.location)
+  const characters = parseCharacterDisplayNames(panel.characters)
+  const visual = cleanInlineText(panel.videoPrompt) || cleanInlineText(panel.description)
+  const characterText = characters.length > 0 ? characters.join('、') : '沿用参考图中的角色'
+  const shotText = shotType || '延续上镜头景别'
+  const moveText = cameraMove || '平滑连续运镜'
+  const locationText = location || '参考图所在空间'
+  const visualText = visual || '按参考图构图延续当前事件'
+
+  return [
+    '摄影规则：严格参考分镜图作为视觉锚点，保持角色身份与空间关系一致，不重复年龄和静态外观描述。',
+    `运镜：${moveText}。景别与视角：${shotText}。`,
+    `画面：${locationText}。`,
+    `角色名：${characterText}。`,
+    `动作连续：${visualText}，动作衔接自然，不跳帧、不突兀切断。`,
+  ].join('\n')
 }
 
 function canAutoMergePair<TPanel extends VideoShotGroupingPanel>(left: TPanel, right: TPanel): boolean {
@@ -132,30 +184,30 @@ export function findVideoShotGroupForPanel<TPanel extends VideoShotGroupingPanel
   ) || null
 }
 
+export function buildPanelVideoPromptSource(panel: VideoShotGroupingPanel): string {
+  return describePanelForPrompt(panel)
+}
+
 export function buildMergedVideoPromptSource<TPanel extends VideoShotGroupingPanel>(group: VideoShotGroup<TPanel>): string {
   if (group.members.length <= 1) {
     const panel = group.members[0]
-    return (panel?.videoPrompt || panel?.description || '').trim()
+    return panel ? describePanelForPrompt(panel) : ''
   }
 
-  const lines = group.members.map((panel, index) => {
-    const parts = [
-      panel.videoPrompt?.trim() || '',
-      panel.description?.trim() || '',
-    ].filter(Boolean)
-    const shotType = panel.shotType?.trim()
-    const cameraMove = panel.cameraMove?.trim()
-    const prefix = [
-      `段落${index + 1}`,
-      shotType ? `景别${shotType}` : '',
-      cameraMove ? `运镜${cameraMove}` : '',
-    ].filter(Boolean).join('，')
-    return `${prefix}：${parts.join('；')}`
+  const segmentLines = group.members.map((panel, index) => {
+    const shotType = cleanInlineText(panel.shotType) || '延续上镜头景别'
+    const cameraMove = cleanInlineText(panel.cameraMove) || '平滑连续运镜'
+    const location = cleanInlineText(panel.location) || '参考图所在空间'
+    const characters = parseCharacterDisplayNames(panel.characters)
+    const characterText = characters.length > 0 ? characters.join('、') : '沿用参考图中的角色'
+    const action = cleanInlineText(panel.videoPrompt) || cleanInlineText(panel.description) || '延续当前事件动作'
+    return `段落${index + 1}：景别视角=${shotType}；运镜=${cameraMove}；画面=${location}；角色=${characterText}；动作=${action}`
   }).filter(Boolean)
 
   return [
-    '这是一个连续单镜头视频，参考首帧图片即可，不要重复描述图片里已经明确的场景布置、人物外观和静态构图。',
-    '请重点表现连续动作、运镜变化、节奏推进和镜头内事件衔接。',
-    ...lines,
+    '摄影规则：这是连续单镜头视频，严格参考首帧图作为视觉锚点，保持角色身份与空间关系一致，不重复年龄和静态外观描述。',
+    '运镜规则：段落之间必须连续衔接，镜头语言完整，节奏递进清晰。',
+    '动作连续规则：前一段动作结果要成为后一段动作起点，避免断裂。',
+    ...segmentLines,
   ].join('\n')
 }

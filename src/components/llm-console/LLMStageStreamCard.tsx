@@ -403,7 +403,7 @@ export default function LLMStageStreamCard({
                   ? Math.max(1, Math.floor(stage.attempt))
                   : 1
               const showRetryButton =
-                stage.status === 'failed'
+                (stage.status === 'failed' || stage.status === 'completed' || stage.status === 'stale')
                 && stage.retryable !== false
                 && typeof onRetryStage === 'function'
               return (

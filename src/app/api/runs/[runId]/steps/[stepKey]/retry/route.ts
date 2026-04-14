@@ -69,9 +69,9 @@ export const POST = apiHandler(async (
     if (message === 'RUN_STEP_NOT_FOUND') {
       throw new ApiError('NOT_FOUND')
     }
-    if (message === 'RUN_STEP_NOT_FAILED') {
+    if (message === 'RUN_STEP_NOT_FAILED' || message === 'RUN_STEP_NOT_RETRYABLE') {
       throw new ApiError('INVALID_PARAMS', {
-        code: 'RUN_STEP_RETRY_ONLY_FAILED',
+        code: 'RUN_STEP_RETRY_NOT_ALLOWED',
         stepKey,
       })
     }

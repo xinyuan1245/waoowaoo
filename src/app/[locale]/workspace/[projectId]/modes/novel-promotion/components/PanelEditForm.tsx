@@ -20,6 +20,7 @@ export interface PanelEditData {
   shotType: string | null
   cameraMove: string | null
   description: string | null
+  imagePrompt: string | null
   location: string | null
   characters: { name: string; appearance: string; slot?: string }[]
   srtStart: number | null

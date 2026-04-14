@@ -13,6 +13,9 @@ export function useAiModifyProjectShotPrompt(projectId: string) {
             currentPrompt: string
             currentVideoPrompt?: string
             modifyInstruction: string
+            panelId?: string
+            episodeId?: string
+            agentType?: 'image_prompt' | 'video_prompt'
             referencedAssets: Array<{
                 id: string
                 name: string

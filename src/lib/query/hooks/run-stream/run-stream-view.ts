@@ -22,6 +22,12 @@ export function deriveRunStreamView(args: {
     ? runState.stepOrder
         .map((id) => runState.stepsById[id])
         .filter((item): item is RunStepState => !!item)
+        .filter((item) => {
+          const normalizedId = item.id.trim()
+          if (normalizedId.endsWith('_phase1_merge')) return false
+          if (item.title === 'progress.streamStep.storyboardMerge') return false
+          return true
+        })
     : []
 
   const activeStepId = runState?.activeStepId || orderedSteps[orderedSteps.length - 1]?.id || null
@@ -108,6 +114,7 @@ export function deriveRunStreamView(args: {
   const isVisible = !!runState && (
     isLiveRunning ||
     runState.status === 'running' ||
+    runState.status === 'completed' ||
     runState.status === 'failed'
   )
 

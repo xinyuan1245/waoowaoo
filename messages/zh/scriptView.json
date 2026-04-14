@@ -62,8 +62,8 @@
     },
     "generate": {
         "missingAssets": "还有 {count} 个资产未生成形象",
-        "missingAssetsTip": "请先在",
-        "missingAssetsTipLink": "中生成所有出场角色和场景的形象",
+        "missingAssetsTip": "建议在",
+        "missingAssetsTipLink": "中先生成角色/场景/道具形象（也可直接继续生成分镜）",
         "generating": "正在生成画面...",
         "startGenerate": "确认并开始绘制 →"
     }

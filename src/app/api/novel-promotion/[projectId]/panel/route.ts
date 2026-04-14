@@ -46,6 +46,7 @@ export const POST = apiHandler(async (
     shotType,
     cameraMove,
     description,
+    imagePrompt,
     location,
     characters,
     props,
@@ -89,6 +90,7 @@ export const POST = apiHandler(async (
       shotType: shotType ?? null,
       cameraMove: cameraMove ?? null,
       description: description ?? null,
+      imagePrompt: imagePrompt ?? null,
       location: location ?? null,
       characters: characters ?? null,
       props: props ?? null,
@@ -335,6 +337,7 @@ export const PUT = apiHandler(async (
     shotType,
     cameraMove,
     description,
+    imagePrompt,
     location,
     characters,
     props,
@@ -366,6 +369,7 @@ export const PUT = apiHandler(async (
     shotType?: string | null
     cameraMove?: string | null
     description?: string | null
+    imagePrompt?: string | null
     location?: string | null
     characters?: string | null
     props?: string | null
@@ -381,6 +385,7 @@ export const PUT = apiHandler(async (
   if (shotType !== undefined) updateData.shotType = shotType
   if (cameraMove !== undefined) updateData.cameraMove = cameraMove
   if (description !== undefined) updateData.description = description
+  if (imagePrompt !== undefined) updateData.imagePrompt = imagePrompt
   if (location !== undefined) updateData.location = location
   if (characters !== undefined) updateData.characters = characters
   if (props !== undefined) updateData.props = props
@@ -423,6 +428,7 @@ export const PUT = apiHandler(async (
         shotType: shotType ?? null,
         cameraMove: cameraMove ?? null,
         description: description ?? null,
+        imagePrompt: imagePrompt ?? null,
         location: location ?? null,
         characters: characters ?? null,
         props: props ?? null,

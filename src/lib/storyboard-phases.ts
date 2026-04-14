@@ -86,6 +86,7 @@ export type StoryboardPanel = JsonRecord & {
     scene_type?: string
     shot_type?: string
     camera_move?: string
+    image_prompt?: string
     video_prompt?: string
     duration?: number
     photographyPlan?: JsonRecord
@@ -617,6 +618,8 @@ export async function executePhase3(
         .replace('{characters_age_gender}', filteredFullDescription)  // 改用完整描述
         .replace('{locations_description}', filteredLocationsDescription)
         .replace('{props_description}', filteredPropsDescription)
+        .replace('{photography_rules_json}', JSON.stringify(photographyRules, null, 2))
+        .replace('{acting_directions_json}', '[]')
 
     // 记录发送给 AI 的完整 prompt
     logAIAnalysis(session.user.id, session.user.name, projectId, projectName, {
@@ -625,7 +628,6 @@ export async function executePhase3(
         model: novelPromotionData.analysisModel
     })
 
-    void photographyRules
     let finalPanels: StoryboardPanel[] = []
 
     // 失败后重试一次

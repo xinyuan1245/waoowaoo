@@ -44,6 +44,7 @@ const concurrencyGateMock = vi.hoisted(() => ({
   }) => await input.run()),
 }))
 const videoPromptSkillsMock = vi.hoisted(() => ({
+  composeVideoPromptWithAgent: vi.fn(async ({ fallbackPrompt }: { fallbackPrompt: string }) => fallbackPrompt),
   maybeOptimizeVideoPromptForModel: vi.fn(async ({ prompt }: { prompt: string }) => prompt),
   usesSeedance20VideoSkill: vi.fn((modelKey: string) => modelKey.startsWith('ark::doubao-seedance-2-0')),
 }))
@@ -275,7 +276,7 @@ describe('worker video processor behavior', () => {
     expect(videoPromptSkillsMock.maybeOptimizeVideoPromptForModel).toHaveBeenCalledWith(expect.objectContaining({
       modelKey: 'ark::doubao-seedance-2-0-260128',
       analysisModel: 'openai::gpt-4.1',
-      prompt: 'panel prompt',
+      prompt: expect.stringContaining('镜头主叙事'),
       durationSeconds: 5,
       aspectRatio: '16:9',
       generationMode: 'normal',
@@ -313,7 +314,7 @@ describe('worker video processor behavior', () => {
       expect.anything(),
       expect.objectContaining({
         options: expect.objectContaining({
-          prompt: 'panel prompt',
+          prompt: expect.stringContaining('镜头主叙事'),
         }),
       }),
     )

@@ -1127,8 +1127,12 @@ export async function retryFailedStep(params: {
     if (!step) {
       throw new Error('RUN_STEP_NOT_FOUND')
     }
-    if (step.status !== RUN_STEP_STATUS.FAILED) {
-      throw new Error('RUN_STEP_NOT_FAILED')
+    const isRetryableStepStatus =
+      step.status === RUN_STEP_STATUS.FAILED
+      || step.status === RUN_STEP_STATUS.COMPLETED
+      || step.status === RUN_STEP_STATUS.CANCELED
+    if (!isRetryableStepStatus) {
+      throw new Error('RUN_STEP_NOT_RETRYABLE')
     }
 
     const steps = await tx.graphStep.findMany({

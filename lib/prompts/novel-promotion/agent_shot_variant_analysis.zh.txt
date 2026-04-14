@@ -58,7 +58,7 @@
     "description": "详细描述这个镜头变体会呈现什么画面",
     "shot_type": "推荐景别（如：主观特写）",
     "camera_move": "推荐运镜（如：固定）",
-    "video_prompt": "用于图片生成的详细提示词，使用年龄+性别描述人物",
+    "video_prompt": "用于图片生成的详细提示词，优先使用角色名，聚焦动作与镜头语言，不写年龄和静态外观",
     "creative_score": 5
   }
 ]
@@ -70,14 +70,14 @@
 - `description`: 详细描述该变体的画面内容
 - `shot_type`: 推荐景别，如"平视中景"、"俯拍全景"、"主观特写"
 - `camera_move`: 推荐运镜，如"固定"、"缓推"
-- `video_prompt`: 图片生成提示词，必须用"年龄+性别"替代角色名（如"年轻女子"、"中年男子"）
+- `video_prompt`: 图片生成提示词，优先使用角色名保证一致性，不写年龄标签；分镜图已绑定外观时避免重复静态外观细节
 - `creative_score`: 创意程度 1-5，5为最有创意
 
 ======================================
 【示例】
 ======================================
 
-**输入画面**: 年轻女子躺在床上看手机
+**输入画面**: 林夏躺在床上看手机
 
 **推荐变体**:
 ```json
@@ -94,19 +94,19 @@
   {
     "id": 2,
     "title": "脸部特写",
-    "description": "女子脸部特写，手机屏光打在脸上，呈现表情细节",
+    "description": "林夏脸部特写，手机屏光打在脸上，呈现表情细节",
     "shot_type": "特写",
     "camera_move": "固定",
-    "video_prompt": "Close-up of a young woman's face illuminated by phone screen light, soft blue glow on skin, expression of focus, lying down angle",
+    "video_prompt": "Close-up of Lin Xia's face illuminated by phone screen light, expression of focus, lying down angle",
     "creative_score": 4
   },
   {
     "id": 3,
     "title": "俯拍全景",
-    "description": "从天花板角度俯拍，展示整个床铺和女子姿态",
+    "description": "从天花板角度俯拍，展示整个床铺和林夏姿态",
     "shot_type": "俯拍全景",
     "camera_move": "固定",
-    "video_prompt": "Top-down bird's eye view of bedroom, young woman lying on bed holding phone, cozy blankets, bedroom interior visible",
+    "video_prompt": "Top-down bird's eye view of bedroom, Lin Xia lying on bed holding phone, bedroom interior visible",
     "creative_score": 4
   },
   {
@@ -115,16 +115,16 @@
     "description": "特写手指在手机屏幕上滑动",
     "shot_type": "极端特写",
     "camera_move": "固定",
-    "video_prompt": "Extreme close-up of feminine fingers swiping on smartphone touchscreen, colorful app interface, shallow depth of field",
+    "video_prompt": "Extreme close-up of Lin Xia's fingers swiping on smartphone touchscreen, colorful app interface, shallow depth of field",
     "creative_score": 3
   },
   {
     "id": 5,
     "title": "侧脸剪影",
-    "description": "逆光侧拍，女子轮廓剪影，手机屏幕微微发光",
+    "description": "逆光侧拍，林夏轮廓剪影，手机屏幕微微发光",
     "shot_type": "近景",
     "camera_move": "固定",
-    "video_prompt": "Silhouette profile of young woman in dark room, backlit by dim blue phone glow, artistic dramatic lighting, moody atmosphere",
+    "video_prompt": "Silhouette profile of Lin Xia in dark room, backlit by dim blue phone glow, artistic dramatic lighting",
     "creative_score": 5
   }
 ]
@@ -135,7 +135,8 @@
 ======================================
 
 ❌ 推荐与当前镜头完全相同的方案
-❌ 使用角色名，必须用"年龄段+性别"（年轻女子、中年男子等）
+❌ 多角色全部改成泛称导致身份混淆
+❌ 重复年龄、服装、发色等静态外观信息（与动作无关）
 ❌ 推荐超出场景合理性的内容（如室内镜头推荐户外场景）
 ❌ 推荐少于 5 个或多于 8 个变体
 ❌ video_prompt 使用中文（必须英文）

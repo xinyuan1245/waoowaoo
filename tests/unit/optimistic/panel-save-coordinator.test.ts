@@ -13,6 +13,7 @@ function buildSnapshot(description: string): PanelEditData {
     shotType: 'close-up',
     cameraMove: 'push',
     description,
+    imagePrompt: 'image prompt',
     location: null,
     characters: [],
     srtStart: null,

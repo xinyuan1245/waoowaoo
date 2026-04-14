@@ -35,7 +35,13 @@ type StoryboardClipInput = {
   screenplay: string | null
 }
 
-export type StoryboardRetryPhase = 'phase1' | 'phase2_cinematography' | 'phase2_acting' | 'phase3_detail'
+export type StoryboardRetryPhase =
+  | 'phase1'
+  | 'phase2_cinematography'
+  | 'phase2_acting'
+  | 'phase3_detail'
+  | 'phase4_image_prompt'
+  | 'phase5_video_prompt'
 
 export type StoryboardRetryTarget = {
   stepKey: string
@@ -49,6 +55,8 @@ export type ScriptToStoryboardAtomicRetryResult = {
   phase2CinematographyByClipId: Record<string, PhotographyRule[]>
   phase2ActingByClipId: Record<string, ActingDirection[]>
   phase3PanelsByClipId: Record<string, StoryboardPanel[]>
+  phase4PanelsByClipId: Record<string, StoryboardPanel[]>
+  phase5PanelsByClipId: Record<string, StoryboardPanel[]>
   totalPanelCount: number
   totalStepCount: number
 }
@@ -161,24 +169,36 @@ function getStepNumbers(params: {
   totalClipCount: number
 }) {
   const zeroBasedClipIndex = params.clipIndex
-  const totalStepCount = params.totalClipCount * 4 + 2
+  const totalStepCount = params.totalClipCount * 6 + 1
   if (params.phase === 'phase1') {
     return { stepIndex: zeroBasedClipIndex + 1, stepTotal: totalStepCount }
   }
   if (params.phase === 'phase2_cinematography') {
     return {
-      stepIndex: params.totalClipCount + zeroBasedClipIndex * 3 + 1,
+      stepIndex: params.totalClipCount + zeroBasedClipIndex * 5 + 1,
       stepTotal: totalStepCount,
     }
   }
   if (params.phase === 'phase2_acting') {
     return {
-      stepIndex: params.totalClipCount + zeroBasedClipIndex * 3 + 2,
+      stepIndex: params.totalClipCount + zeroBasedClipIndex * 5 + 2,
+      stepTotal: totalStepCount,
+    }
+  }
+  if (params.phase === 'phase3_detail') {
+    return {
+      stepIndex: params.totalClipCount + zeroBasedClipIndex * 5 + 3,
+      stepTotal: totalStepCount,
+    }
+  }
+  if (params.phase === 'phase4_image_prompt') {
+    return {
+      stepIndex: params.totalClipCount + zeroBasedClipIndex * 5 + 4,
       stepTotal: totalStepCount,
     }
   }
   return {
-    stepIndex: params.totalClipCount + zeroBasedClipIndex * 3 + 3,
+    stepIndex: params.totalClipCount + zeroBasedClipIndex * 5 + 5,
     stepTotal: totalStepCount,
   }
 }
@@ -231,17 +251,53 @@ function buildStepMeta(params: {
       retryable: true,
     }
   }
+  if (params.target.phase === 'phase3_detail') {
+    return {
+      stepId: stepKey,
+      stepTitle: 'progress.streamStep.storyboardDetailRefine',
+      stepIndex: stepNumbers.stepIndex,
+      stepTotal: stepNumbers.stepTotal,
+      dependsOn: [
+        `clip_${params.target.clipId}_phase2_cinematography`,
+        `clip_${params.target.clipId}_phase2_acting`,
+      ],
+      groupId,
+      parallelKey: 'phase3',
+      retryable: true,
+    }
+  }
+  if (params.target.phase === 'phase4_image_prompt') {
+    return {
+      stepId: stepKey,
+      stepTitle: 'progress.streamStep.imagePromptOptimize',
+      stepIndex: stepNumbers.stepIndex,
+      stepTotal: stepNumbers.stepTotal,
+      dependsOn: [`clip_${params.target.clipId}_phase3_detail`],
+      groupId,
+      parallelKey: 'phase4',
+      retryable: true,
+    }
+  }
+  if (params.target.phase === 'phase5_video_prompt') {
+    return {
+      stepId: stepKey,
+      stepTitle: 'progress.streamStep.videoPromptOptimize',
+      stepIndex: stepNumbers.stepIndex,
+      stepTotal: stepNumbers.stepTotal,
+      dependsOn: [`clip_${params.target.clipId}_phase4_image_prompt`],
+      groupId,
+      parallelKey: 'phase5',
+      retryable: true,
+    }
+  }
   return {
     stepId: stepKey,
-    stepTitle: 'progress.streamStep.storyboardDetailRefine',
+    stepTitle: 'progress.streamStep.videoPromptOptimize',
     stepIndex: stepNumbers.stepIndex,
     stepTotal: stepNumbers.stepTotal,
-    dependsOn: [
-      `clip_${params.target.clipId}_phase2_cinematography`,
-      `clip_${params.target.clipId}_phase2_acting`,
-    ],
+    dependsOn: [`clip_${params.target.clipId}_phase4_image_prompt`],
     groupId,
-    parallelKey: 'phase3',
+    parallelKey: 'phase5',
     retryable: true,
   }
 }
@@ -318,7 +374,7 @@ function requireRows<T extends JsonRecord>(rows: T[], label: string) {
 export function parseStoryboardRetryTarget(stepKey: string): StoryboardRetryTarget | null {
   const trimmed = stepKey.trim()
   if (!trimmed) return null
-  const match = /^clip_(.+)_(phase1|phase2_cinematography|phase2_acting|phase3_detail)$/.exec(trimmed)
+  const match = /^clip_(.+)_(phase1|phase2_cinematography|phase2_acting|phase3_detail|phase4_image_prompt|phase5_video_prompt)$/.exec(trimmed)
   if (!match) return null
   const clipId = (match[1] || '').trim()
   const phase = match[2] as StoryboardRetryPhase
@@ -373,6 +429,8 @@ export async function runScriptToStoryboardAtomicRetry(params: {
   const phase2CinematographyByClipId: Record<string, PhotographyRule[]> = {}
   const phase2ActingByClipId: Record<string, ActingDirection[]> = {}
   const phase3PanelsByClipId: Record<string, StoryboardPanel[]> = {}
+  const phase4PanelsByClipId: Record<string, StoryboardPanel[]> = {}
+  const phase5PanelsByClipId: Record<string, StoryboardPanel[]> = {}
   const clipPanels: ClipPanelsResult[] = []
 
   let phase1Panels = await readArtifactRows<StoryboardPanel>({
@@ -399,6 +457,116 @@ export async function runScriptToStoryboardAtomicRetry(params: {
     artifactType: 'storyboard.clip.phase3',
     key: 'panels',
   })
+  let phase4Panels = await readArtifactRows<StoryboardPanel>({
+    runId: params.runId,
+    clipId: params.retryTarget.clipId,
+    artifactType: 'storyboard.clip.phase4.image_prompt',
+    key: 'panels',
+  })
+  let phase5Panels = await readArtifactRows<StoryboardPanel>({
+    runId: params.runId,
+    clipId: params.retryTarget.clipId,
+    artifactType: 'storyboard.clip.phase5.video_prompt',
+    key: 'panels',
+  })
+
+  const runPhase3 = async (meta: ScriptToStoryboardStepMeta, retryBaseAttempt: number) => {
+    const planPanels = requireRows(phase1Panels, 'storyboard.clip.phase1')
+    const phase3Prompt = params.promptTemplates.phase3DetailTemplate
+      .replace('{panels_json}', JSON.stringify(planPanels, null, 2))
+      .replace('{characters_age_gender}', filteredFullDescription)
+      .replace('{locations_description}', filteredLocationsDescription)
+      .replace('{props_description}', filteredPropsDescription)
+      .replace('{photography_rules_json}', JSON.stringify(requireRows(phase2Cinematography, 'storyboard.clip.phase2.cine'), null, 2))
+      .replace('{acting_directions_json}', JSON.stringify(requireRows(phase2Acting, 'storyboard.clip.phase2.acting'), null, 2))
+    phase3Panels = await runStepWithRetry({
+      runStep: params.runStep,
+      baseMeta: meta,
+      prompt: phase3Prompt,
+      action: 'storyboard_phase3_detail',
+      maxOutputTokens: 2600,
+      parse: (text) => {
+        const parsed = parseJsonArray<StoryboardPanel>(text, `phase3:${formatClipId(params.clip)}`)
+        const filtered = parsed.filter((panel) => panel.description && panel.description !== '无' && panel.location !== '无')
+        if (filtered.length === 0) {
+          throw new Error(`Phase 3 returned empty usable panels for clip ${formatClipId(params.clip)}`)
+        }
+        return filtered
+      },
+      retryStepAttempt: retryBaseAttempt,
+    })
+    phase3PanelsByClipId[params.clip.id] = phase3Panels
+  }
+
+  const runPhase4 = async (meta: ScriptToStoryboardStepMeta, retryBaseAttempt: number) => {
+    const inputPanels = requireRows(phase3Panels, 'storyboard.clip.phase3')
+    const phase4Prompt = params.promptTemplates.phase4ImagePromptTemplate
+      .replace('{panels_json}', JSON.stringify(inputPanels, null, 2))
+      .replace('{characters_info}', filteredFullDescription)
+      .replace('{locations_description}', filteredLocationsDescription)
+      .replace('{props_description}', filteredPropsDescription)
+      .replace('{photography_rules_json}', JSON.stringify(requireRows(phase2Cinematography, 'storyboard.clip.phase2.cine'), null, 2))
+      .replace('{acting_directions_json}', JSON.stringify(requireRows(phase2Acting, 'storyboard.clip.phase2.acting'), null, 2))
+    phase4Panels = await runStepWithRetry({
+      runStep: params.runStep,
+      baseMeta: meta,
+      prompt: phase4Prompt,
+      action: 'storyboard_phase4_image_prompt',
+      maxOutputTokens: 2600,
+      parse: (text) => {
+        const parsed = parseJsonArray<StoryboardPanel>(text, `phase4:${formatClipId(params.clip)}`)
+        const filtered = parsed.filter((panel) => (
+          panel.description
+          && panel.description !== '无'
+          && panel.location !== '无'
+          && typeof panel.image_prompt === 'string'
+          && panel.image_prompt.trim().length > 0
+        ))
+        if (filtered.length === 0) {
+          throw new Error(`Phase 4 returned panels without image_prompt for clip ${formatClipId(params.clip)}`)
+        }
+        return filtered
+      },
+      retryStepAttempt: retryBaseAttempt,
+    })
+    phase4PanelsByClipId[params.clip.id] = phase4Panels
+  }
+
+  const runPhase5 = async (meta: ScriptToStoryboardStepMeta, retryBaseAttempt: number) => {
+    const inputPanels = requireRows(phase4Panels, 'storyboard.clip.phase4.image_prompt')
+    const phase5Prompt = params.promptTemplates.phase5VideoPromptTemplate
+      .replace('{panels_json}', JSON.stringify(inputPanels, null, 2))
+      .replace('{characters_info}', filteredFullDescription)
+      .replace('{locations_description}', filteredLocationsDescription)
+      .replace('{props_description}', filteredPropsDescription)
+      .replace('{photography_rules_json}', JSON.stringify(requireRows(phase2Cinematography, 'storyboard.clip.phase2.cine'), null, 2))
+      .replace('{acting_directions_json}', JSON.stringify(requireRows(phase2Acting, 'storyboard.clip.phase2.acting'), null, 2))
+    phase5Panels = await runStepWithRetry({
+      runStep: params.runStep,
+      baseMeta: meta,
+      prompt: phase5Prompt,
+      action: 'storyboard_phase5_video_prompt',
+      maxOutputTokens: 2600,
+      parse: (text) => {
+        const parsed = parseJsonArray<StoryboardPanel>(text, `phase5:${formatClipId(params.clip)}`)
+        const filtered = parsed.filter((panel) => (
+          panel.description
+          && panel.description !== '无'
+          && panel.location !== '无'
+          && typeof panel.image_prompt === 'string'
+          && panel.image_prompt.trim().length > 0
+          && typeof panel.video_prompt === 'string'
+          && panel.video_prompt.trim().length > 0
+        ))
+        if (filtered.length === 0) {
+          throw new Error(`Phase 5 returned panels without complete prompts for clip ${formatClipId(params.clip)}`)
+        }
+        return filtered
+      },
+      retryStepAttempt: retryBaseAttempt,
+    })
+    phase5PanelsByClipId[params.clip.id] = phase5Panels
+  }
 
   if (params.retryTarget.phase === 'phase1') {
     const clipContent = typeof params.clip.content === 'string' ? params.clip.content.trim() : ''
@@ -468,6 +636,36 @@ export async function runScriptToStoryboardAtomicRetry(params: {
       retryStepAttempt: params.retryStepAttempt,
     })
     phase2CinematographyByClipId[params.clip.id] = phase2Cinematography
+    const phase3Meta = buildStepMeta({
+      target: {
+        stepKey: `clip_${params.retryTarget.clipId}_phase3_detail`,
+        clipId: params.retryTarget.clipId,
+        phase: 'phase3_detail',
+      },
+      clipIndex: params.clipIndex,
+      totalClipCount: params.totalClipCount,
+    })
+    await runPhase3(phase3Meta, 1)
+    const phase4Meta = buildStepMeta({
+      target: {
+        stepKey: `clip_${params.retryTarget.clipId}_phase4_image_prompt`,
+        clipId: params.retryTarget.clipId,
+        phase: 'phase4_image_prompt',
+      },
+      clipIndex: params.clipIndex,
+      totalClipCount: params.totalClipCount,
+    })
+    await runPhase4(phase4Meta, 1)
+    const phase5Meta = buildStepMeta({
+      target: {
+        stepKey: `clip_${params.retryTarget.clipId}_phase5_video_prompt`,
+        clipId: params.retryTarget.clipId,
+        phase: 'phase5_video_prompt',
+      },
+      clipIndex: params.clipIndex,
+      totalClipCount: params.totalClipCount,
+    })
+    await runPhase5(phase5Meta, 1)
   } else if (params.retryTarget.phase === 'phase2_acting') {
     const planPanels = requireRows(phase1Panels, 'storyboard.clip.phase1')
     const phase2ActingPrompt = params.promptTemplates.phase2ActingTemplate
@@ -484,37 +682,77 @@ export async function runScriptToStoryboardAtomicRetry(params: {
       retryStepAttempt: params.retryStepAttempt,
     })
     phase2ActingByClipId[params.clip.id] = phase2Acting
-  } else {
-    const planPanels = requireRows(phase1Panels, 'storyboard.clip.phase1')
-    const phase3Prompt = params.promptTemplates.phase3DetailTemplate
-      .replace('{panels_json}', JSON.stringify(planPanels, null, 2))
-      .replace('{characters_age_gender}', filteredFullDescription)
-      .replace('{locations_description}', filteredLocationsDescription)
-      .replace('{props_description}', filteredPropsDescription)
-    phase3Panels = await runStepWithRetry({
-      runStep: params.runStep,
-      baseMeta,
-      prompt: phase3Prompt,
-      action: 'storyboard_phase3_detail',
-      maxOutputTokens: 2600,
-      parse: (text) => {
-        const parsed = parseJsonArray<StoryboardPanel>(text, `phase3:${formatClipId(params.clip)}`)
-        const filtered = parsed.filter(
-          (panel) => panel.description && panel.description !== '无' && panel.location !== '无',
-        )
-        if (filtered.length === 0) {
-          throw new Error(`Phase 3 returned empty valid panels for clip ${formatClipId(params.clip)}`)
-        }
-        return filtered
+    const phase3Meta = buildStepMeta({
+      target: {
+        stepKey: `clip_${params.retryTarget.clipId}_phase3_detail`,
+        clipId: params.retryTarget.clipId,
+        phase: 'phase3_detail',
       },
-      retryStepAttempt: params.retryStepAttempt,
+      clipIndex: params.clipIndex,
+      totalClipCount: params.totalClipCount,
     })
-    phase3PanelsByClipId[params.clip.id] = phase3Panels
+    await runPhase3(phase3Meta, 1)
+    const phase4Meta = buildStepMeta({
+      target: {
+        stepKey: `clip_${params.retryTarget.clipId}_phase4_image_prompt`,
+        clipId: params.retryTarget.clipId,
+        phase: 'phase4_image_prompt',
+      },
+      clipIndex: params.clipIndex,
+      totalClipCount: params.totalClipCount,
+    })
+    await runPhase4(phase4Meta, 1)
+    const phase5Meta = buildStepMeta({
+      target: {
+        stepKey: `clip_${params.retryTarget.clipId}_phase5_video_prompt`,
+        clipId: params.retryTarget.clipId,
+        phase: 'phase5_video_prompt',
+      },
+      clipIndex: params.clipIndex,
+      totalClipCount: params.totalClipCount,
+    })
+    await runPhase5(phase5Meta, 1)
+  } else if (params.retryTarget.phase === 'phase3_detail') {
+    await runPhase3(baseMeta, params.retryStepAttempt)
+    const phase4Meta = buildStepMeta({
+      target: {
+        stepKey: `clip_${params.retryTarget.clipId}_phase4_image_prompt`,
+        clipId: params.retryTarget.clipId,
+        phase: 'phase4_image_prompt',
+      },
+      clipIndex: params.clipIndex,
+      totalClipCount: params.totalClipCount,
+    })
+    await runPhase4(phase4Meta, 1)
+    const phase5Meta = buildStepMeta({
+      target: {
+        stepKey: `clip_${params.retryTarget.clipId}_phase5_video_prompt`,
+        clipId: params.retryTarget.clipId,
+        phase: 'phase5_video_prompt',
+      },
+      clipIndex: params.clipIndex,
+      totalClipCount: params.totalClipCount,
+    })
+    await runPhase5(phase5Meta, 1)
+  } else if (params.retryTarget.phase === 'phase4_image_prompt') {
+    await runPhase4(baseMeta, params.retryStepAttempt)
+    const phase5Meta = buildStepMeta({
+      target: {
+        stepKey: `clip_${params.retryTarget.clipId}_phase5_video_prompt`,
+        clipId: params.retryTarget.clipId,
+        phase: 'phase5_video_prompt',
+      },
+      clipIndex: params.clipIndex,
+      totalClipCount: params.totalClipCount,
+    })
+    await runPhase5(phase5Meta, 1)
+  } else {
+    await runPhase5(baseMeta, params.retryStepAttempt)
   }
 
   if (params.retryTarget.phase !== 'phase1') {
     const finalPanels = mergePanelsWithRules({
-      finalPanels: requireRows(phase3Panels, 'storyboard.clip.phase3'),
+      finalPanels: requireRows(phase5Panels, 'storyboard.clip.phase5.video_prompt'),
       photographyRules: requireRows(phase2Cinematography, 'storyboard.clip.phase2.cine'),
       actingDirections: requireRows(phase2Acting, 'storyboard.clip.phase2.acting'),
     })
@@ -532,7 +770,9 @@ export async function runScriptToStoryboardAtomicRetry(params: {
     phase2CinematographyByClipId,
     phase2ActingByClipId,
     phase3PanelsByClipId,
+    phase4PanelsByClipId,
+    phase5PanelsByClipId,
     totalPanelCount,
-    totalStepCount: params.totalClipCount * 4 + 2,
+    totalStepCount: params.totalClipCount * 6 + 1,
   }
 }

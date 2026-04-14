@@ -1,6 +1,10 @@
 import { safeParseJson, safeParseJsonArray } from '@/lib/json-repair'
 import { prisma } from '@/lib/prisma'
 import type { StoryboardPanel } from '@/lib/storyboard-phases'
+import {
+  buildPersistedStoryboardImagePrompt,
+  buildPersistedStoryboardVideoPrompt,
+} from '@/lib/novel-promotion/storyboard-prompt-composer'
 
 export type JsonRecord = Record<string, unknown>
 
@@ -183,6 +187,8 @@ export async function persistStoryboardsAndPanels(params: {
       const persistedPanels: PersistedStoryboard['panels'] = []
       for (let i = 0; i < clipEntry.finalPanels.length; i += 1) {
         const panel = clipEntry.finalPanels[i]
+        const imagePrompt = buildPersistedStoryboardImagePrompt(panel)
+        const videoPrompt = buildPersistedStoryboardVideoPrompt(panel)
         const created = await panelModel.create({
           data: {
             storyboardId: storyboard.id,
@@ -191,7 +197,8 @@ export async function persistStoryboardsAndPanels(params: {
             shotType: panel.shot_type || '中景',
             cameraMove: panel.camera_move || '固定',
             description: panel.description || null,
-            videoPrompt: panel.video_prompt || null,
+            imagePrompt: imagePrompt || null,
+            videoPrompt: videoPrompt || null,
             location: panel.location || null,
             characters: panel.characters ? JSON.stringify(panel.characters) : null,
             props: panel.props ? JSON.stringify(panel.props) : null,
@@ -277,6 +284,8 @@ export async function persistStoryboardOutputs(params: {
       const persistedPanels: PersistedStoryboard['panels'] = []
       for (let i = 0; i < clipEntry.finalPanels.length; i += 1) {
         const panel = clipEntry.finalPanels[i]
+        const imagePrompt = buildPersistedStoryboardImagePrompt(panel)
+        const videoPrompt = buildPersistedStoryboardVideoPrompt(panel)
         const created = await panelModel.create({
           data: {
             storyboardId: storyboard.id,
@@ -285,7 +294,8 @@ export async function persistStoryboardOutputs(params: {
             shotType: panel.shot_type || '中景',
             cameraMove: panel.camera_move || '固定',
             description: panel.description || null,
-            videoPrompt: panel.video_prompt || null,
+            imagePrompt: imagePrompt || null,
+            videoPrompt: videoPrompt || null,
             location: panel.location || null,
             characters: panel.characters ? JSON.stringify(panel.characters) : null,
             props: panel.props ? JSON.stringify(panel.props) : null,
